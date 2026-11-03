@@ -9,7 +9,7 @@
     "detailsUrl": "https://github.com/NeptunedGmbH/freescout-nested-tags",
     "author": "NeptunedGmbH",
     "authorUrl": "https://github.com/NeptunedGmbH",
-    "img": "",
+    "img": "/modules/nestedtags/img/module.png",
     "requiredAppVersion": "1.8.246",
     "requiredPhpVersion": "8.1",
     "latestVersionUrl": "https://raw.githubusercontent.com/NeptunedGmbH/freescout-nested-tags/refs/heads/main/version.txt",
