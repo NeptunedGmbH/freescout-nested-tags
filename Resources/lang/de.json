@@ -9,5 +9,13 @@
     "The folder belongs to another mailbox.": "Der Ordner gehört zu einer anderen Mailbox.",
     "Only a custom folder can be nested.": "Nur ein eigener Ordner kann untergeordnet werden.",
     "Unknown action.": "Unbekannte Aktion.",
-    "Saved": "Gespeichert"
+    "Saved": "Gespeichert",
+    "Drag right to nest under the folder above. Drag left to move it out.": "Nach rechts ziehen ordnet unter den Ordner darüber. Nach links zieht ihn wieder heraus.",
+    "Edit folder": "Bearbeiten",
+    "Add folder": "Neuer Ordner",
+    "More settings": "Weitere Einstellungen",
+    "The name is also the tag.": "Der Name wird auch die Markierung.",
+    "Add subfolder": "Unterordner",
+    "Delete this folder?": "Diesen Ordner löschen?",
+    "Folder actions": "Ordneraktionen"
 }

@@ -32,6 +32,7 @@ expect('allowed', TreeRules::authorize(true) === null);
 
 $moved = TreeRules::reparent(array(2 => 1, 3 => 2), 2, 4);
 expect('subtree stays', isset($moved[3]) && $moved[3] === 2 && $moved[2] === 4);
+expect('ancestors', TreeRules::ancestors(3, array(2 => 1, 3 => 2)) === array(2, 1));
 
 $plan = TreeRules::deletePlan(1, array(2 => 1, 3 => 2), array(1 => 'personal', 2 => 'onboarding', 3 => 'payroll'), array('personal'));
 expect('descendants deleted', $plan['delete'] === array(2, 3, 1) || $plan['delete'] === array(3, 2, 1) || count(array_diff(array(1, 2, 3), $plan['delete'])) === 0 && count($plan['delete']) === 3);

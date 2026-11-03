@@ -16,7 +16,7 @@ Siehe proposal.md. Tags 1.0.49 und Custom Folders sind installiert und werden vo
 - Eigener Ordnertyp, Nachfahren in der Elternliste, Workflow-Bedingung „Tag oder Unter-Tags“, API-Feld `parent`.
 - Gmail-Einstellungen „Show“, „Hide“ und „Show if unread“, und ein Limit von 5.000 Labels. Die Sichtbarkeit bleibt „Nur anzeigen für“ von Custom Folders.
 - Gespräche auf einen Ordner ziehen. Das ist ein eigenes Modul, Change `drop-on-custom-folders` im Repo `freescout-folder-drop`. Dieses Modul setzt keine Tags per Drag.
-- Ebenen per Ziehen umsortieren. Die Ebene setzt das Feld „Unterordnen unter“, auch als vorausgewählter Wert beim Anlegen eines Unterlabels. Die bestehende Reihenfolge der Custom Folders bleibt die Geschwisterfolge.
+- Ebenen in der Seitenleiste per Ziehen umsortieren. In der Ordnerverwaltung zieht der Griff nach rechts unter den Ordner darüber und nach links wieder heraus. Das Feld „Unterordnen unter“ bleibt. Die Geschwisterfolge bleibt die Reihenfolge von Custom Folders.
 
 ## Decisions
 

@@ -32,6 +32,7 @@ class HealthCommand extends Command
             'assets' => $this->assets(),
             'version' => $this->versionMatches($root),
             'interop' => $this->interop($root),
+            'customfolders' => $this->customFolders(),
         );
         $version = $this->version($root);
         $failed = 0;
@@ -77,6 +78,7 @@ class HealthCommand extends Command
             'Providers/NestedTagsServiceProvider.php',
             'Http/routes.php',
             'Http/Controllers/NestedTagsController.php',
+            'Resources/views/form.blade.php',
             'Support/TreeRules.php',
             'Support/FolderTree.php',
             'Public/css/module.css',
@@ -115,12 +117,12 @@ class HealthCommand extends Command
     protected function routes()
     {
         try {
-            $exists = Route::has('nestedtags.ajax');
+            $exists = Route::has('nestedtags.ajax') && Route::has('nestedtags.form');
         } catch (\Throwable $e) {
             $exists = false;
         }
 
-        return $exists ? 'ok' : 'missing nestedtags.ajax';
+        return $exists ? 'ok' : 'missing nestedtags route';
     }
 
     protected function database()
@@ -191,5 +193,27 @@ class HealthCommand extends Command
         }
 
         return (string) $manifest['version'];
+    }
+
+    /**
+     * Official Custom Folders must be active and its license marked activated.
+     *
+     * @return string
+     */
+    protected function customFolders()
+    {
+        try {
+            if (!\App\Module::isActive('customfolders')) {
+                return 'customfolders inactive';
+            }
+            $module = \App\Module::getByAlias('customfolders');
+        } catch (\Exception $e) {
+            return 'customfolders unavailable';
+        }
+        if (!$module || empty($module->activated)) {
+            return 'customfolders license inactive';
+        }
+
+        return 'ok';
     }
 }

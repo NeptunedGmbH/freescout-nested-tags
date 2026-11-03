@@ -33,6 +33,14 @@ Das System MUST einen Custom Folder beim Anlegen und beim Bearbeiten unter einen
 - **WHEN** das Modul zum ersten Mal aktiv ist und noch keine Zuordnung gespeichert wurde
 - **THEN** steht jeder bestehende Custom Folder auf der obersten Ebene
 
+#### Scenario: Ziehen in der Ordnerliste
+- **WHEN** eine berechtigte Person in der Ordnerverwaltung einen Ordner nach rechts auf den darüber liegenden Ordner zieht
+- **THEN** liegt der gezogene Ordner darunter, und seine Unterordner bleiben an ihm
+
+#### Scenario: Ziehen nach links
+- **WHEN** eine berechtigte Person einen untergeordneten Ordner in der Ordnerverwaltung nach links zieht
+- **THEN** steht er auf der obersten Ebene und seine Unterordner bleiben an ihm
+
 ### Requirement: Keine Zyklen
 Das System MUST eine Zuordnung ablehnen, die einen Ordner unter sich selbst oder unter einen seiner Nachfahren legt. Die abgelehnte Zuordnung MUST NOT gespeichert werden.
 
@@ -60,22 +68,26 @@ Die Seitenleiste MUST jeden sichtbaren Custom Folder mit seinem eigenen Namen ze
 - **THEN** zeigt Personal keine Anzahl aus Onboarding
 
 ### Requirement: Klick öffnet nur dieses Label
-Ein Klick auf einen Ordner MUST nur die Gespräche öffnen, die zu genau diesem Custom Folder gehören. Gespräche, die nur einen Unterordner betreffen, MUST NOT dort erscheinen. Die bisherigen Filter des Ordners MUST gelten.
+Ein Klick auf einen Ordner MUST die Gespräche öffnen, die den Tag dieses Ordners tragen. Die bisherigen Filter des Ordners MUST gelten. Gespräche eines Unterordners tragen den Tag des Hauptordners mit und erscheinen deshalb auch dort.
 
-#### Scenario: Nur der Eltern-Tag
-- **WHEN** ein Gespräch nur den Tag von Onboarding trägt und der Nutzer Personal öffnet
-- **THEN** fehlt dieses Gespräch in Personal
+#### Scenario: Unterordner liegt im Hauptordner
+- **WHEN** ein Gespräch den Tag von Onboarding trägt und Onboarding unter Personal liegt
+- **THEN** trägt das Gespräch auch den Tag von Personal und erscheint in beiden Ordnern, soweit die Filter passen
 
 #### Scenario: Filter bleiben
 - **WHEN** ein Custom Folder nur aktive eigene Gespräche anzeigt
 - **THEN** zeigt der geöffnete Ordner weiterhin nur diese Gespräche, auf jeder Ebene
 
-### Requirement: Label bleibt unabhängig
-Das Setzen eines Tags MUST NOT den Tag eines Elternordners oder eines Unterordners ergänzen oder entfernen. Workflows, Suche und die API MUST den Tag über seinen bisherigen Namen treffen.
+### Requirement: Unterordner tragen den Tag des Hauptordners
+Ein Gespräch, das den Tag eines Unterordners trägt, MUST auch den Tag jedes Hauptordners darüber tragen. Das gilt für Gespräche, die schon so markiert sind, und wenn ein Gespräch auf den Unterordner gezogen wird. Herausnehmen aus der Verschachtelung MUST diese Tags NOT entfernen. Workflows, Suche und die API MUST den Tag über seinen bisherigen Namen treffen.
 
-#### Scenario: Nur das Kind
-- **WHEN** jemand einem Gespräch den Tag von Onboarding gibt und Onboarding unter Personal liegt
-- **THEN** trägt das Gespräch den Tag von Onboarding und nicht den Tag von Personal
+#### Scenario: Nachträglich
+- **WHEN** Onboarding unter Personal liegt und ein Gespräch schon den Tag von Onboarding trägt
+- **THEN** trägt das Gespräch auch den Tag von Personal
+
+#### Scenario: Reinziehen
+- **WHEN** jemand ein Gespräch auf Onboarding zieht und Onboarding unter Personal liegt
+- **THEN** trägt das Gespräch den Tag von Onboarding und den Tag von Personal
 
 #### Scenario: Suche
 - **WHEN** jemand nach dem bisherigen Tag-Namen von Onboarding sucht

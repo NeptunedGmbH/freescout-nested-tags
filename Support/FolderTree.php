@@ -99,8 +99,100 @@ class FolderTree
                 'parent_folder_id' => $parentId,
             ));
         }
+        self::inheritFromFolder($mailboxId, $folderId);
 
         return null;
+    }
+
+    /**
+     * Tag names of the folders above this one, nearest parent first.
+     *
+     * @return string[]
+     */
+    public static function ancestorTagNames($folderId)
+    {
+        $folder = Folder::find((int) $folderId);
+        if (!$folder) {
+            return array();
+        }
+        $mailboxId = (int) $folder->mailbox_id;
+        $folders = self::customFolders($mailboxId);
+        $parentOf = self::parents(array_map('intval', array_keys($folders)));
+        $names = array();
+        foreach (TreeRules::ancestors((int) $folderId, $parentOf) as $id) {
+            if (!empty($folders[$id]['tag'])) {
+                $names[] = $folders[$id]['tag'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * Conversations that carry a nested folder's tag also receive every folder tag above it.
+     */
+    public static function inheritFromFolder($mailboxId, $folderId)
+    {
+        $mailboxId = (int) $mailboxId;
+        $folderId = (int) $folderId;
+        $folders = self::customFolders($mailboxId);
+        $parentOf = self::parents(array_map('intval', array_keys($folders)));
+        $ids = array_merge(array($folderId), TreeRules::descendants($folderId, $parentOf));
+        foreach ($ids as $id) {
+            self::inheritOne($mailboxId, (int) $id, $folders, $parentOf);
+        }
+    }
+
+    public static function inheritAll()
+    {
+        if (!\Schema::hasTable('folder_tree')) {
+            return;
+        }
+        $mailboxIds = DB::table('folder_tree')
+            ->join('folders', 'folders.id', '=', 'folder_tree.folder_id')
+            ->distinct()
+            ->pluck('folders.mailbox_id');
+        foreach ($mailboxIds as $mailboxId) {
+            $folders = self::customFolders((int) $mailboxId);
+            $parentOf = self::parents(array_map('intval', array_keys($folders)));
+            foreach (array_keys($parentOf) as $id) {
+                self::inheritOne((int) $mailboxId, (int) $id, $folders, $parentOf);
+            }
+        }
+    }
+
+    /**
+     * @param array<int,array{name:string,tag:string}> $folders
+     * @param array<int,int> $parentOf
+     */
+    protected static function inheritOne($mailboxId, $folderId, array $folders, array $parentOf)
+    {
+        if (empty($folders[$folderId]['tag']) || !class_exists(\Modules\Tags\Entities\Tag::class)) {
+            return;
+        }
+        $ancestors = array();
+        foreach (TreeRules::ancestors($folderId, $parentOf) as $id) {
+            if (!empty($folders[$id]['tag'])) {
+                $ancestors[] = $folders[$id]['tag'];
+            }
+        }
+        if (!$ancestors) {
+            return;
+        }
+        $tag = \Modules\Tags\Entities\Tag::where('name', $folders[$folderId]['tag'])->first();
+        if (!$tag) {
+            return;
+        }
+        $conversationIds = DB::table('conversation_tag')
+            ->join('conversations', 'conversations.id', '=', 'conversation_tag.conversation_id')
+            ->where('conversation_tag.tag_id', $tag->id)
+            ->where('conversations.mailbox_id', (int) $mailboxId)
+            ->pluck('conversations.id');
+        foreach ($conversationIds as $conversationId) {
+            foreach ($ancestors as $name) {
+                \Modules\Tags\Entities\Tag::attachByName($name, (int) $conversationId);
+            }
+        }
     }
 
     /**

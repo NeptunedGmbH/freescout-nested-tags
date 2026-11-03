@@ -25,6 +25,17 @@ interface NestedBoot {
     sublabel: string;
     confirm: string;
     deleteLabel: string;
+    dragHint: string;
+    canEdit: boolean;
+    createUrl: string;
+    formUrl: string;
+    edit: string;
+    addFolder: string;
+    addSubfolder: string;
+    moreSettings: string;
+    nameIsTag: string;
+    deleteFolder: string;
+    folderActions: string;
 }
 
 interface JQueryModal {
@@ -70,7 +81,18 @@ declare function showModalConfirm(
 declare function getGlobalAttr(name: string): string;
 declare const laroute: { route(name: string): string } | undefined;
 
+interface ModalParams {
+    remote?: string;
+    title?: string;
+    no_footer?: boolean;
+    size?: string;
+    on_show?: (modal: JQueryCollection) => void;
+}
+
 interface Window {
     initNewFolder?: (modal: JQueryCollection) => void;
+    initCustomFoldersForm?: (selector: string, action: string) => void;
     nestedtagsStart?: (boot: NestedBoot) => void;
 }
+
+declare function showModal(params: ModalParams): void;

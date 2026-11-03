@@ -1,8 +1,11 @@
 {
     "name": "NestedTags",
     "alias": "nestedtags",
-    "description": "Nest Custom Folders the way Gmail nests labels. The sidebar shows the short name indented. A conversation shows the path.",
-    "version": "1.0.0",
+    "description": "Add-on for Custom Folders: nest folders the way Gmail nests labels.",
+    "version": "0.1",
+    "requiredModules": {
+        "customfolders": "1.0.0"
+    },
     "detailsUrl": "https://github.com/NeptunedGmbH/freescout-nested-tags",
     "author": "NeptunedGmbH",
     "authorUrl": "https://github.com/NeptunedGmbH",

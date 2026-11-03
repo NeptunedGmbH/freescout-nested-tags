@@ -49,6 +49,37 @@ class NestedTagsController extends Controller
         return $this->fail(__('Unknown action.'));
     }
 
+    public function form($mailboxId, $folderId)
+    {
+        $mailbox = FolderTree::mailboxForUser((int) $mailboxId);
+        if (!$mailbox || !FolderTree::canUpdate($mailbox)) {
+            \Helper::denyAccess();
+        }
+        $folder = Folder::find((int) $folderId);
+        $type = class_exists(\CustomFolder::class) && defined('\CustomFolder::TYPE_CUSTOM')
+            ? (int) \CustomFolder::TYPE_CUSTOM
+            : FolderTree::TYPE_CUSTOM;
+        if (!$folder || (int) $folder->mailbox_id !== (int) $mailbox->id || (int) $folder->type !== $type) {
+            abort(404);
+        }
+        $folder->tag_name = '';
+        $meta = is_array($folder->meta) ? $folder->meta : array();
+        $tagId = isset($meta['tag_id']) ? (int) $meta['tag_id'] : 0;
+        if ($tagId && class_exists(\Modules\Tags\Entities\Tag::class)) {
+            $tag = \Modules\Tags\Entities\Tag::find($tagId);
+            if ($tag) {
+                $folder->tag_name = $tag->name;
+            } else {
+                $folder->tag_missing = true;
+            }
+        }
+
+        return view('nestedtags::form', array(
+            'folder' => $folder,
+            'mailbox' => $mailbox,
+        ));
+    }
+
     protected function mailbox(Request $request)
     {
         $mailboxId = (int) $request->input('mailbox_id');

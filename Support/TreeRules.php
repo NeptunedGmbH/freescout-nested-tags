@@ -76,9 +76,29 @@ class TreeRules
     }
 
     /**
+     * Folder ids from the parent upward, not including $id.
+     *
      * @param array<int,int|null> $parentOf
      * @return int[]
      */
+    public static function ancestors($id, array $parentOf)
+    {
+        $out = array();
+        $seen = array();
+        $cursor = array_key_exists((int) $id, $parentOf) ? $parentOf[(int) $id] : null;
+        while ($cursor !== null && !isset($seen[(int) $cursor])) {
+            $cursor = (int) $cursor;
+            $seen[$cursor] = true;
+            $out[] = $cursor;
+            if (!array_key_exists($cursor, $parentOf) || $parentOf[$cursor] === null) {
+                break;
+            }
+            $cursor = $parentOf[$cursor];
+        }
+
+        return $out;
+    }
+
     public static function descendants($id, array $parentOf)
     {
         $id = (int) $id;
