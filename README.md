@@ -1,16 +1,16 @@
 # NestedTags
 
-Früher Prototyp. Noch kein Release.
+Early prototype. No release yet.
 
-Verschachtelt Custom Folders so, wie Gmail Labels verschachtelt. Die Seitenleiste zeigt den kurzen Ordnernamen eingerückt. Am Gespräch steht der Pfad `Personal/Onboarding`. Ein Klick öffnet nur dieses Label.
+Nests custom folders the way Gmail nests labels. The sidebar shows the short folder name, indented. On a conversation the path reads `Personal/Onboarding`. A click opens only that label.
 
-Tags und Custom Folders werden nicht verändert. Die Ebene liegt in der eigenen Tabelle `folder_tree`.
+Tags and custom folders are left unchanged. The level lives in its own `folder_tree` table.
 
-Lizenz: [MIT](LICENSE).
+License: [MIT](LICENSE).
 
 ## Installation
 
-Das Repository ist das FreeScout-Modul. Es kommt nach `Modules/NestedTags`. In diesem Setup ist das `/data/Modules/NestedTags`.
+This repository is the FreeScout module. It belongs in `Modules/NestedTags`. In this setup that is `/data/Modules/NestedTags`.
 
 ```bash
 docker cp . freescout-app:/data/Modules/NestedTags
@@ -18,11 +18,11 @@ docker exec -w /www/html freescout-app php artisan module:enable NestedTags
 docker exec -w /www/html freescout-app php artisan freescout:module-install nestedtags
 ```
 
-`freescout:module-install` legt die öffentliche Verknüpfung und führt die Migration aus.
+`freescout:module-install` creates the public symlink and runs the migration.
 
 ## Rollback
 
-Modul deaktivieren. Die Tabelle `folder_tree` darf bleiben. Ordner, die mitsamt ihren Unterordnern schon gelöscht wurden, kommen dadurch nicht zurück.
+Deactivate the module. The `folder_tree` table can stay. Folders that were already deleted together with their subfolders do not come back.
 
 ```bash
 docker exec -w /www/html freescout-app php artisan module:disable nestedtags
@@ -30,22 +30,22 @@ docker exec -w /www/html freescout-app php artisan module:disable nestedtags
 
 ## UpdateGuard
 
-[UpdateGuard](https://github.com/00MY00/UpdateGuard) prüft das Modul über die Angaben in `module.json`.
+[UpdateGuard](https://github.com/00MY00/UpdateGuard) checks the module from the fields in `module.json`.
 
-Die nur lesende Prüfung ist `nestedtags:health`:
+The read-only check is `nestedtags:health`:
 
 ```bash
 php artisan nestedtags:health
 php artisan nestedtags:health --json
 ```
 
-Exit-Code 0 bedeutet gesund, Exit-Code 1 nicht. Der Befehl schreibt nicht, migriert nicht und baut keine Verbindung nach außen auf.
+Exit code 0 means healthy, exit code 1 does not. The command does not write, does not migrate, and does not open an outbound connection.
 
-`version.txt` auf `main` ist die Versionszeile. Ein Release und damit `NestedTags.zip` plus `SHA256SUMS` gibt es noch nicht. Der automatische Download über UpdateGuard wartet darauf. `scripts/sha256sums.sh` und `.github/workflows/sha256sums.yml` sind vorbereitet und legen selbst kein Release an.
+`version.txt` on `main` is the version line. There is no release yet, so there is no `NestedTags.zip` or `SHA256SUMS`. Automatic download through UpdateGuard waits for that. `scripts/sha256sums.sh` and `.github/workflows/sha256sums.yml` are in place and do not create a release themselves.
 
-## Oberfläche
+## UI
 
-Der Browser-Code liegt in `src/module.ts` und wird auf dem Host nach `Public/js/module.js` übersetzt. Im Container gibt es kein Node.
+The browser code lives in `src/module.ts` and is built on the host into `Public/js/module.js`. The container has no Node.
 
 ```bash
 npm install
