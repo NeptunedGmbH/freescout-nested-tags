@@ -1,0 +1,13 @@
+{
+    "Nest under": "Unterordnen unter",
+    "Top level": "Oberste Ebene",
+    "Add sublabel": "Unterlabel",
+    "These folders will also be deleted. Conversations stay:": "Diese Ordner werden mitgelöscht. Die Gespräche bleiben:",
+    "You do not have access to this mailbox.": "Kein Zugriff auf diese Mailbox.",
+    "You do not have permission to manage folders.": "Keine Berechtigung, Ordner zu verwalten.",
+    "A folder cannot sit inside itself.": "Ein Ordner kann nicht in sich selbst liegen.",
+    "The folder belongs to another mailbox.": "Der Ordner gehört zu einer anderen Mailbox.",
+    "Only a custom folder can be nested.": "Nur ein eigener Ordner kann untergeordnet werden.",
+    "Unknown action.": "Unbekannte Aktion.",
+    "Saved": "Gespeichert"
+}

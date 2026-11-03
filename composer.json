@@ -1,0 +1,23 @@
+{
+    "name": "freescout/nested-tags",
+    "description": "Nest Custom Folders the way Gmail nests labels.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "NeptunedGmbH"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Modules\\NestedTags\\Providers\\NestedTagsServiceProvider"
+            ],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\NestedTags\\": ""
+        }
+    }
+}

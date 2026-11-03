@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "target": "ES5",
+        "module": "none",
+        "outFile": "Public/js/module.js",
+        "strict": true,
+        "lib": ["ES2017", "DOM"],
+        "noEmitOnError": true,
+        "removeComments": false
+    },
+    "files": ["src/freescout.d.ts", "src/module.ts"]
+}

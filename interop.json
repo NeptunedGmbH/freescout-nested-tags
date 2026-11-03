@@ -1,0 +1,32 @@
+{
+    "project": {
+        "id": "nested-tags",
+        "name": "NestedTags",
+        "repository": "https://github.com/NeptunedGmbH/freescout-nested-tags",
+        "interop_protocol": "1.0.0"
+    },
+    "compatibility": {
+        "freescout": ">=1.8.246",
+        "php": ">=8.1",
+        "projects": {
+            "tags": {
+                "relationship": "required_dependency",
+                "required": true,
+                "name": "Tags",
+                "module": "Tags"
+            },
+            "custom-folders": {
+                "relationship": "required_dependency",
+                "required": true,
+                "name": "CustomFolders",
+                "module": "CustomFolders"
+            },
+            "folder-drop": {
+                "relationship": "optional_integration",
+                "required": false,
+                "name": "FolderDrop",
+                "module": "FolderDrop"
+            }
+        }
+    }
+}

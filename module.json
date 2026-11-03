@@ -1,0 +1,31 @@
+{
+    "name": "NestedTags",
+    "alias": "nestedtags",
+    "description": "Nest Custom Folders the way Gmail nests labels. The sidebar shows the short name indented. A conversation shows the path.",
+    "version": "1.0.0",
+    "detailsUrl": "https://github.com/NeptunedGmbH/freescout-nested-tags",
+    "author": "NeptunedGmbH",
+    "authorUrl": "https://github.com/NeptunedGmbH",
+    "img": "",
+    "requiredAppVersion": "1.8.246",
+    "requiredPhpVersion": "8.1",
+    "latestVersionUrl": "https://raw.githubusercontent.com/NeptunedGmbH/freescout-nested-tags/refs/heads/main/version.txt",
+    "latestVersionZipUrl": "https://github.com/NeptunedGmbH/freescout-nested-tags/releases/latest/download/NestedTags.zip",
+    "sha256sumsUrl": "https://github.com/NeptunedGmbH/freescout-nested-tags/releases/latest/download/SHA256SUMS",
+    "healthCommand": "nestedtags:health",
+    "updateGuard": {
+        "migrations": "backward-compatible"
+    },
+    "license": "MIT",
+    "keywords": ["tags", "folders", "gmail", "nested"],
+    "active": 0,
+    "order": 0,
+    "providers": [
+        "Modules\\NestedTags\\Providers\\NestedTagsServiceProvider"
+    ],
+    "aliases": {},
+    "files": [
+        "start.php"
+    ],
+    "requires": []
+}

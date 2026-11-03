@@ -1,0 +1,130 @@
+# Spec Delta
+
+## Purpose
+
+Custom Folders einer Mailbox lassen sich bedienen wie verschachtelte Gmail-Labels. Die Ebene ändert die Anzeige. Ein Gespräch liegt nur in den Ordnern, deren Tag es selbst trägt.
+
+## ADDED Requirements
+
+### Requirement: Unter einem bestehenden Ordner anlegen
+Das System MUST einen Custom Folder beim Anlegen und beim Bearbeiten unter einen anderen Custom Folder derselben Mailbox legen können. Der Elternordner MUST schon existieren. Systemordner MUST NOT Eltern oder Kinder sein. Die Farbe eines Ordners MUST NOT von seinem Elternordner übernommen werden.
+
+#### Scenario: Nest label under
+- **WHEN** eine berechtigte Person Onboarding anlegt und Personal als übergeordneten Ordner wählt
+- **THEN** liegt Onboarding unter Personal
+
+#### Scenario: Unterlabel vom Elternordner aus
+- **WHEN** eine berechtigte Person an Personal ein Unterlabel anlegt und es Lohnbuchhaltung nennt
+- **THEN** liegt der neue Ordner unter Personal
+
+#### Scenario: Herausnehmen
+- **WHEN** eine berechtigte Person bei Onboarding den übergeordneten Ordner entfernt
+- **THEN** steht Onboarding auf der obersten Ebene und seine eigenen Unterordner bleiben unter Onboarding
+
+#### Scenario: Ast mitnehmen
+- **WHEN** Onboarding unter Personal liegt, Lohnbuchhaltung unter Onboarding, und Onboarding unter Projekte gelegt wird
+- **THEN** liegt Lohnbuchhaltung weiter unter Onboarding und Onboarding unter Projekte
+
+#### Scenario: Andere Mailbox
+- **WHEN** eine Person einen Ordner unter einen Custom Folder einer anderen Mailbox legen will
+- **THEN** lehnt das System die Zuordnung ab und die bisherige Ebene bleibt
+
+#### Scenario: Bestehende Ordner
+- **WHEN** das Modul zum ersten Mal aktiv ist und noch keine Zuordnung gespeichert wurde
+- **THEN** steht jeder bestehende Custom Folder auf der obersten Ebene
+
+### Requirement: Keine Zyklen
+Das System MUST eine Zuordnung ablehnen, die einen Ordner unter sich selbst oder unter einen seiner Nachfahren legt. Die abgelehnte Zuordnung MUST NOT gespeichert werden.
+
+#### Scenario: Unter den eigenen Nachfahren
+- **WHEN** Lohnbuchhaltung unter Onboarding liegt und jemand Onboarding unter Lohnbuchhaltung legen will
+- **THEN** bleibt Onboarding, wo es war
+
+### Requirement: Seitenleiste zeigt den kurzen Namen im Baum
+Die Seitenleiste MUST jeden sichtbaren Custom Folder mit seinem eigenen Namen zeigen, eingerückt unter dem sichtbaren Elternordner. Den Pfad MUST die Seitenleiste dort nicht anzeigen. Ein Ordner mit sichtbaren Kindern MUST sich auf- und zuklappen lassen. Der Zustand MUST pro Mailbox erhalten bleiben. Ohne gemerkten Zustand MUST der Zweig offen sein. Die Zahl am Ordner MUST die eigene Zahl dieses Ordners bleiben und MUST NOT die Kinder mitzählen.
+
+#### Scenario: Kurzer Name
+- **WHEN** Onboarding unter Personal liegt und der Nutzer die Mailbox öffnet
+- **THEN** steht unter Personal der Name Onboarding, nicht der Pfad Personal/Onboarding
+
+#### Scenario: Zugeklappt
+- **WHEN** der Nutzer Personal zuklappt und die Mailbox erneut öffnet
+- **THEN** bleibt Personal zu und Onboarding ist verborgen, bis Personal wieder aufgeht
+
+#### Scenario: Versteckter Elternordner
+- **WHEN** Personal für den aktuellen Nutzer nicht sichtbar ist und Onboarding sichtbar ist
+- **THEN** erscheint Onboarding auf der obersten Ebene und Personal fehlt
+
+#### Scenario: Eigene Zahl
+- **WHEN** Personal keine eigenen Gespräche hat und Onboarding welche hat
+- **THEN** zeigt Personal keine Anzahl aus Onboarding
+
+### Requirement: Klick öffnet nur dieses Label
+Ein Klick auf einen Ordner MUST nur die Gespräche öffnen, die zu genau diesem Custom Folder gehören. Gespräche, die nur einen Unterordner betreffen, MUST NOT dort erscheinen. Die bisherigen Filter des Ordners MUST gelten.
+
+#### Scenario: Nur der Eltern-Tag
+- **WHEN** ein Gespräch nur den Tag von Onboarding trägt und der Nutzer Personal öffnet
+- **THEN** fehlt dieses Gespräch in Personal
+
+#### Scenario: Filter bleiben
+- **WHEN** ein Custom Folder nur aktive eigene Gespräche anzeigt
+- **THEN** zeigt der geöffnete Ordner weiterhin nur diese Gespräche, auf jeder Ebene
+
+### Requirement: Label bleibt unabhängig
+Das Setzen eines Tags MUST NOT den Tag eines Elternordners oder eines Unterordners ergänzen oder entfernen. Workflows, Suche und die API MUST den Tag über seinen bisherigen Namen treffen.
+
+#### Scenario: Nur das Kind
+- **WHEN** jemand einem Gespräch den Tag von Onboarding gibt und Onboarding unter Personal liegt
+- **THEN** trägt das Gespräch den Tag von Onboarding und nicht den Tag von Personal
+
+#### Scenario: Suche
+- **WHEN** jemand nach dem bisherigen Tag-Namen von Onboarding sucht
+- **THEN** findet die Suche dieselben Gespräche wie vor der Verschachtelung
+
+### Requirement: Am Gespräch steht der Pfad
+Wo ein Tag an einem Gespräch sichtbar ist, MUST das System den Pfad der Ordnernamen dieser Mailbox mit `/` anzeigen. In der Tag-Auswahl MUST derselbe Baum stehen, jede Zeile mit dem eigenen Ordnernamen und eingerückt. Gespeichert und gesucht MUST der bisherige Tag-Name werden.
+
+#### Scenario: Pfad am Gespräch
+- **WHEN** ein Gespräch den Tag von Onboarding trägt und Onboarding unter Personal liegt
+- **THEN** zeigt die Anzeige `Personal/Onboarding` und der gespeicherte Name bleibt der bisherige Tag-Name
+
+#### Scenario: Umbenennen des Elternordners
+- **WHEN** der Ordner Personal in Team umbenannt wird und ein Gespräch den Tag von Onboarding trägt
+- **THEN** zeigt die Anzeige `Team/Onboarding` und die gespeicherten Tag-Namen bleiben
+
+#### Scenario: Tag ohne Ordner
+- **WHEN** ein Gespräch einen Tag trägt, der in dieser Mailbox an keinem Custom Folder hängt
+- **THEN** zeigt die Anzeige nur den Tag-Namen
+
+#### Scenario: Mehrere Ordner mit demselben Tag
+- **WHEN** in derselben Mailbox mehr als ein Custom Folder denselben Tag trägt
+- **THEN** zeigt die Anzeige am Gespräch nur den Tag-Namen
+
+### Requirement: Elternordner löschen entfernt die Unterordner
+Vor dem Löschen eines Custom Folders mit Unterordnern MUST das System die Unterordner nennen. Nach der Bestätigung MUST es diesen Ordner und jeden darunter liegenden Ordner löschen, ihre Tags von den Gesprächen dieser Mailbox nehmen und die Gespräche MUST NOT löschen. Ein Tag, den eine andere Mailbox noch an einem Ordner verwendet, MUST als Tag erhalten bleiben.
+
+#### Scenario: Bestätigung
+- **WHEN** eine berechtigte Person Personal löschen will und Onboarding darunter liegt
+- **THEN** nennt die Rückfrage Onboarding, bevor etwas gelöscht wird
+
+#### Scenario: Unterordner weg, Gespräche bleiben
+- **WHEN** die Person das Löschen bestätigt
+- **THEN** sind Personal und Onboarding als Ordner weg, die Gespräche sind noch da, und die Tags dieser Ordner hängen nicht mehr an Gesprächen dieser Mailbox
+
+### Requirement: Nur berechtigte Personen ändern die Ebene
+Das System MUST die Ebene eines Ordners nur ändern, wenn dieselbe Person den Custom Folder dieser Mailbox bearbeiten darf.
+
+#### Scenario: Ohne Recht
+- **WHEN** eine Person ohne Recht zur Ordnerverwaltung eine Ebene ändern will
+- **THEN** lehnt das System die Änderung ab
+
+### Requirement: UpdateGuard prüft das Modul
+Das Modul MUST den Artisan-Befehl `nestedtags:health` registrieren. Mit `--json` MUST die Ausgabe ein JSON-Objekt mit `status` `ok` oder `fail` sein. Exit-Code 0 MUST genau den gesunden Zustand bedeuten. Der Befehl MUST NOT schreiben, migrieren oder das Netzwerk benutzen.
+
+#### Scenario: Gesundes Modul
+- **WHEN** die Dateien, die Klassen, die Route und die Tabelle `folder_tree` lesbar sind und `php artisan nestedtags:health --json` läuft
+- **THEN** ist der Exit-Code 0 und `status` ist `ok`
+
+#### Scenario: Prüfung ändert nichts
+- **WHEN** der Befehl läuft
+- **THEN** schreibt er keine Zeile, startet keine Migration und baut keine Verbindung nach außen auf
