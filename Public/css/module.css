@@ -245,17 +245,19 @@ body.dm #folders li.nestedtags-manageable > .nestedtags-more:focus {
 }
 
 body.dm .nestedtags-menu {
-    background: #222830;
-    border-color: #3a4450;
+    background: #1a1a1a;
+    border-color: #333333;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 body.dm .nestedtags-menu button {
-    color: #e6e6e6;
+    color: #f2f2f2;
 }
 
 body.dm .nestedtags-menu button:hover,
 body.dm .nestedtags-menu button:focus {
-    background: #1c3a57;
+    background: #2c2c2c;
+    color: #f2f2f2;
 }
 
 .nestedtags-drag-hint {
