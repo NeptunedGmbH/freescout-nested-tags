@@ -719,6 +719,19 @@ function folderMenu(): HTMLElement | null {
     return document.querySelector('.nestedtags-menu');
 }
 
+function menuButton(iconName: string, label: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    const icon = document.createElement('i');
+    icon.className = 'glyphicon glyphicon-' + iconName;
+    icon.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.textContent = label;
+    button.appendChild(icon);
+    button.appendChild(text);
+    return button;
+}
+
 function ensureFolderMenu(): HTMLElement {
     const existing = folderMenu();
     if (existing) {
@@ -727,12 +740,8 @@ function ensureFolderMenu(): HTMLElement {
     const menu = document.createElement('div');
     menu.className = 'nestedtags-menu';
     menu.style.display = 'none';
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.textContent = boot ? boot.edit : 'Edit';
-    const sub = document.createElement('button');
-    sub.type = 'button';
-    sub.textContent = boot ? boot.addSubfolder : 'Add subfolder';
+    const edit = menuButton('pencil', boot ? boot.edit : 'Edit');
+    const sub = menuButton('plus', boot ? boot.addSubfolder : 'Add subfolder');
     menu.appendChild(edit);
     menu.appendChild(sub);
     document.body.appendChild(menu);

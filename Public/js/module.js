@@ -701,6 +701,18 @@ function bindFolderMenu() {
 function folderMenu() {
     return document.querySelector('.nestedtags-menu');
 }
+function menuButton(iconName, label) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    var icon = document.createElement('i');
+    icon.className = 'glyphicon glyphicon-' + iconName;
+    icon.setAttribute('aria-hidden', 'true');
+    var text = document.createElement('span');
+    text.textContent = label;
+    button.appendChild(icon);
+    button.appendChild(text);
+    return button;
+}
 function ensureFolderMenu() {
     var existing = folderMenu();
     if (existing) {
@@ -709,12 +721,8 @@ function ensureFolderMenu() {
     var menu = document.createElement('div');
     menu.className = 'nestedtags-menu';
     menu.style.display = 'none';
-    var edit = document.createElement('button');
-    edit.type = 'button';
-    edit.textContent = boot ? boot.edit : 'Edit';
-    var sub = document.createElement('button');
-    sub.type = 'button';
-    sub.textContent = boot ? boot.addSubfolder : 'Add subfolder';
+    var edit = menuButton('pencil', boot ? boot.edit : 'Edit');
+    var sub = menuButton('plus', boot ? boot.addSubfolder : 'Add subfolder');
     menu.appendChild(edit);
     menu.appendChild(sub);
     document.body.appendChild(menu);
