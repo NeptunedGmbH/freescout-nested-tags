@@ -15,6 +15,22 @@ var dragOriginDepth = 0;
 var nestMark = null;
 var sidebarEdit = false;
 var menuBound = false;
+var folderDragBound = false;
+var folderDragId = 0;
+var folderPressBlocked = false;
+var folderDragChip = null;
+var folderDropKey = '';
+var folderDropLine = null;
+var folderLiveHit = null;
+var pendingFolderHtml = '';
+var pendingFolderIcons = null;
+var pendingFolderIconsKnown = false;
+var pendingFolderRevision = 0;
+var lastFolderEventId = 0;
+var conversationDrag = false;
+var folderChannelOn = false;
+var folderSyncToken = 0;
+var folderEpoch = 0;
 function nestedtagsStart(config) {
     boot = config;
     nodes = config.nodes || [];
@@ -25,6 +41,8 @@ function nestedtagsStart(config) {
     bindNewFolder();
     bindAdminDrag();
     bindFolderMenu();
+    bindFolderDrag();
+    bindLiveFolders();
     paint();
     if (!nodes.length) {
         loadTree(mailboxId(), paint);
@@ -38,12 +56,16 @@ function mailboxId() {
     var parsed = parseInt(raw, 10);
     return isNaN(parsed) ? 0 : parsed;
 }
-function loadTree(id, done) {
+function loadTree(id, done, accept) {
     if (!boot || !id) {
         done();
         return;
     }
     fsAjax({ action: 'tree', mailbox_id: id }, boot.url, function (response) {
+        if (accept && !accept()) {
+            done();
+            return;
+        }
         if (response && response.nodes) {
             nodes = response.nodes;
         }
@@ -216,14 +238,51 @@ function bindSidebarReload() {
         }
         var previous = options.success;
         options.success = function (data) {
+            if (data && data.status === 'success') {
+                var savedId_1 = data.id ? Number(data.id) : Number(fields.folder_id || 0);
+                var savedName_1 = data.name || '';
+                var parentId_1 = fields.parent_folder_id || '';
+                window.iconpickerReleaseFolderSave = function () {
+                    showSidebarEdit(savedId_1, savedName_1, parentId_1);
+                };
+            }
             if (previous) {
                 previous(data);
             }
-            if (data && data.status === 'success') {
-                window.location.reload();
-            }
         };
     });
+}
+function showSidebarEdit(id, name, parentId) {
+    var nameChanged = !!(id && name && name !== folderName(id));
+    var parentChanged = !!(id && parentId !== parentIdOf(id));
+    if (nameChanged) {
+        folderEpoch++;
+        for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].id === id) {
+                nodes[i].name = name;
+            }
+        }
+        var label = document.querySelector('#folders li[data-folder_id="' + String(id) + '"] .folder-name');
+        if (label) {
+            label.textContent = name;
+        }
+    }
+    if (parentChanged) {
+        applyFolderMove(id, parentId, '');
+    }
+    var mailbox = mailboxId();
+    if (mailbox && (nameChanged || parentChanged)) {
+        loadTree(mailbox, refreshFolderLabels);
+    }
+    var open = document.querySelector('.modal.in, .modal.show');
+    if (open) {
+        var modal = $(open);
+        if (modal.modal) {
+            modal.modal('hide');
+            return;
+        }
+    }
+    sidebarEdit = false;
 }
 function bindNewFolder() {
     var original = window.initNewFolder;
@@ -265,6 +324,10 @@ function simplifyCreate(root) {
         }
         form.setAttribute('data-nestedtags-simple', '1');
         form.classList.add('nestedtags-simple');
+        var counter = form.querySelector('select[name="counter"]');
+        if (counter instanceof HTMLSelectElement) {
+            counter.value = '1';
+        }
         var nameGroup = nameInput.closest('.form-group');
         var field = nameInput.parentElement;
         if (field && boot) {
@@ -500,6 +563,11 @@ function paint() {
     paintTags();
     paintPicker();
     injectParents(document, '');
+    prepareFolderDrag();
+}
+function refreshFolderLabels() {
+    paintTags();
+    paintPicker();
 }
 function isCustomFolder(id) {
     for (var i = 0; i < nodes.length; i++) {
@@ -547,7 +615,7 @@ function paintManage() {
         }
         var button = document.createElement('button');
         button.type = 'button';
-        button.className = 'nestedtags-more';
+        button.className = 'btn btn-trans nestedtags-more';
         button.setAttribute('aria-label', boot.folderActions);
         button.textContent = '\u2026';
         button.addEventListener('click', function (event) {
@@ -566,20 +634,26 @@ function placeAddButton(root) {
     if (document.querySelector('.nestedtags-add') || !boot) {
         return;
     }
-    var button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'nestedtags-add';
+    var wrap = document.createElement('div');
+    wrap.className = 'sidebar-buttons btn-group-rounded nestedtags-add-wrap';
+    var button = document.createElement('a');
+    button.href = '#';
+    button.className = 'btn btn-trans nestedtags-add';
+    button.setAttribute('role', 'button');
     var plus = document.createElement('i');
     plus.className = 'glyphicon glyphicon-plus';
     plus.setAttribute('aria-hidden', 'true');
     var label = document.createElement('span');
     label.textContent = boot.addFolder;
     button.appendChild(plus);
+    button.appendChild(document.createTextNode(' '));
     button.appendChild(label);
-    button.addEventListener('click', function () {
+    button.addEventListener('click', function (event) {
+        event.preventDefault();
         openCreate('');
     });
-    root.insertAdjacentElement('afterend', button);
+    wrap.appendChild(button);
+    root.insertAdjacentElement('afterend', wrap);
 }
 function bindFolderMenu() {
     if (menuBound) {
@@ -980,6 +1054,49 @@ function markNest(panel) {
         panel.classList.add('nestedtags-nest-target');
     }
 }
+function folderItems(parent) {
+    var out = [];
+    var kids = parent.children;
+    for (var i = 0; i < kids.length; i++) {
+        var child = kids[i];
+        if (child instanceof HTMLElement && child.hasAttribute('data-folder_id')) {
+            out.push(child);
+        }
+    }
+    return out;
+}
+function placeAt(parent, item, index) {
+    var others = [];
+    var kids = parent.children;
+    for (var i = 0; i < kids.length; i++) {
+        var child = kids[i];
+        if (child instanceof HTMLElement && child.hasAttribute('data-folder_id') && child !== item) {
+            others.push(child);
+        }
+    }
+    var anchor = index < others.length ? others[index] : null;
+    if (item.parentNode === parent) {
+        var next = item.nextElementSibling;
+        var nextFolder = null;
+        while (next) {
+            if (next instanceof HTMLElement && next.hasAttribute('data-folder_id')) {
+                nextFolder = next;
+                break;
+            }
+            next = next.nextElementSibling;
+        }
+        if (nextFolder === anchor) {
+            return false;
+        }
+    }
+    if (anchor) {
+        parent.insertBefore(item, anchor);
+    }
+    else {
+        parent.appendChild(item);
+    }
+    return true;
+}
 function nestSidebar() {
     var root = document.querySelector('#folders');
     if (!root) {
@@ -994,10 +1111,14 @@ function nestSidebar() {
             byId[id] = item;
         }
     }
+    var seen = {};
     for (var n = 0; n < nodes.length; n++) {
         var node = nodes[n];
+        if (!node.parent) {
+            continue;
+        }
         var item = byId[node.id];
-        var parentItem = node.parent ? byId[node.parent] : null;
+        var parentItem = byId[node.parent];
         if (!item || !parentItem) {
             continue;
         }
@@ -1007,9 +1128,9 @@ function nestSidebar() {
             list.className = 'nestedtags-children';
             parentItem.appendChild(list);
         }
-        if (item.parentElement !== list) {
-            list.appendChild(item);
-        }
+        var index = seen[node.parent] || 0;
+        seen[node.parent] = index + 1;
+        placeAt(list, item, index);
     }
     var tops = root.querySelectorAll(':scope > li[data-folder_id]');
     for (var i = 0; i < tops.length; i++) {
@@ -1158,6 +1279,804 @@ function folderForTag(tag) {
         found = nodes[i];
     }
     return found;
+}
+function pointerIsFine() {
+    return window.matchMedia('(pointer: fine)').matches;
+}
+function folderRoot() {
+    var root = document.getElementById('folders');
+    if (!root || root.classList.contains('chats')) {
+        return null;
+    }
+    return root;
+}
+function canDragFolders() {
+    return !!(boot && boot.canEdit && pointerIsFine() && folderRoot());
+}
+function prepareFolderDrag() {
+    var root = document.getElementById('folders');
+    if (!root) {
+        return;
+    }
+    var allow = canDragFolders();
+    var items = root.querySelectorAll('li[data-folder_id]');
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var id = parseInt(item.getAttribute('data-folder_id') || '', 10);
+        var links = item.querySelectorAll('a, button');
+        for (var j = 0; j < links.length; j++) {
+            links[j].setAttribute('draggable', 'false');
+        }
+        if (allow && isCustomFolder(id)) {
+            item.setAttribute('draggable', 'true');
+        }
+        else {
+            item.removeAttribute('draggable');
+        }
+    }
+}
+function bindFolderDrag() {
+    if (folderDragBound) {
+        return;
+    }
+    folderDragBound = true;
+    document.addEventListener('pointerdown', rememberFolderPress, true);
+    document.addEventListener('mousedown', rememberFolderPress, true);
+    document.addEventListener('dragstart', onFolderDragStart, true);
+    document.addEventListener('dragover', onFolderDragOver);
+    document.addEventListener('drop', onFolderDrop);
+    document.addEventListener('dragend', clearFolderDrag);
+    var fine = window.matchMedia('(pointer: fine)');
+    if (typeof fine.addEventListener === 'function') {
+        fine.addEventListener('change', prepareFolderDrag);
+    }
+}
+function bindLiveFolders() {
+    tunePolling();
+    $(function () {
+        tunePolling();
+        if (folderChannelOn) {
+            return;
+        }
+        var root = document.getElementById('folders');
+        if (!root || root.classList.contains('chats')) {
+            return;
+        }
+        var id = mailboxId();
+        if (!id || typeof poly === 'undefined' || !poly) {
+            return;
+        }
+        folderChannelOn = true;
+        document.addEventListener('dragstart', noteConversationDrag);
+        document.addEventListener('dragend', releaseFolderList);
+        var channel = poly.subscribe('nestedtags.folders.' + String(id));
+        channel.on('Modules\\NestedTags\\Events\\FolderSidebarRefresh', function (data, envelope) {
+            acceptFolderList(id, data, folderEventId(envelope));
+        });
+    });
+}
+function tunePolling() {
+    if (typeof poly === 'undefined' || !poly || !poly.options) {
+        return;
+    }
+    poly.options.polling = 1;
+}
+function noteConversationDrag(event) {
+    if (event.defaultPrevented) {
+        return;
+    }
+    var target = event.target;
+    if (!(target instanceof Element)) {
+        return;
+    }
+    if (target.closest('#folders li[data-folder_id]')) {
+        return;
+    }
+    if (target.closest('tr.conv-row, li.chat-item')) {
+        conversationDrag = true;
+    }
+}
+function folderEventId(envelope) {
+    if (!envelope || envelope.id === undefined || envelope.id === null) {
+        return 0;
+    }
+    var id = Number(envelope.id);
+    return id > 0 ? id : 0;
+}
+function acceptFolderList(id, data, eventId) {
+    if (!data || Number(data.mailbox_id) !== id || typeof data.folders_html !== 'string' || data.folders_html === '') {
+        return;
+    }
+    var root = document.getElementById('folders');
+    if (!root || root.classList.contains('chats')) {
+        return;
+    }
+    if (eventId > 0 && eventId < lastFolderEventId) {
+        return;
+    }
+    var known = Object.prototype.hasOwnProperty.call(data, 'icons')
+        && data.icons != null
+        && typeof data.icons === 'object';
+    var icons = known ? data.icons : {};
+    var revision = Number(data.icon_revision || 0);
+    if (folderDragId !== 0 || conversationDrag) {
+        pendingFolderHtml = data.folders_html;
+        pendingFolderIconsKnown = known;
+        pendingFolderIcons = known ? icons : null;
+        pendingFolderRevision = revision;
+    }
+    else {
+        replaceFolderList(data.folders_html, known, icons, revision);
+    }
+    if (eventId > 0) {
+        lastFolderEventId = eventId;
+    }
+}
+function releaseFolderList() {
+    conversationDrag = false;
+    var html = pendingFolderHtml;
+    var icons = pendingFolderIcons;
+    if (!html) {
+        return;
+    }
+    pendingFolderHtml = '';
+    pendingFolderIcons = null;
+    var known = pendingFolderIconsKnown;
+    var revision = pendingFolderRevision;
+    pendingFolderIconsKnown = false;
+    pendingFolderRevision = 0;
+    replaceFolderList(html, known, icons || {}, revision);
+}
+function parseFolderRows(html) {
+    var holder = document.createElement('div');
+    holder.innerHTML = html;
+    var items = holder.querySelectorAll(':scope > li[data-folder_id]');
+    var rows = [];
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (!(item instanceof HTMLElement)) {
+            continue;
+        }
+        var id = parseInt(item.getAttribute('data-folder_id') || '', 10);
+        if (id) {
+            rows.push({ id: id, element: item });
+        }
+    }
+    return rows;
+}
+function folderFact(item) {
+    var link = item.querySelector(':scope > a');
+    var nameNode = link ? link.querySelector(':scope > .folder-name') : null;
+    var name = nameNode ? (nameNode.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    var countNode = link ? link.querySelector(':scope > .active-count') : null;
+    var count = countNode ? (countNode.textContent || '').replace(/\s+/g, '') : '';
+    var active = item.getAttribute('data-active-count') || '';
+    var quiet = link && link.classList.contains('no-active') ? '1' : '0';
+    return name + '\t' + count + '\t' + active + '\t' + quiet;
+}
+function sameContent(root, rows) {
+    var live = root.querySelectorAll('li[data-folder_id]');
+    if (live.length !== rows.length) {
+        return false;
+    }
+    var byId = {};
+    for (var i = 0; i < live.length; i++) {
+        var id = parseInt(live[i].getAttribute('data-folder_id') || '', 10);
+        if (id) {
+            byId[id] = folderFact(live[i]);
+        }
+    }
+    for (var i = 0; i < rows.length; i++) {
+        if (byId[rows[i].id] !== folderFact(rows[i].element)) {
+            return false;
+        }
+    }
+    return true;
+}
+function parentOfNodes(nodeList) {
+    var parentOf = {};
+    for (var i = 0; i < nodeList.length; i++) {
+        if (nodeList[i].parent) {
+            parentOf[nodeList[i].id] = nodeList[i].parent;
+        }
+    }
+    return parentOf;
+}
+function visibleIds(rows) {
+    var ids = {};
+    for (var i = 0; i < rows.length; i++) {
+        ids[rows[i].id] = true;
+    }
+    return ids;
+}
+function desiredTopIds(rows, nodeList) {
+    var parentOf = parentOfNodes(nodeList);
+    var visible = visibleIds(rows);
+    var ids = [];
+    for (var i = 0; i < rows.length; i++) {
+        var parent_3 = parentOf[rows[i].id];
+        if (!parent_3 || !visible[parent_3]) {
+            ids.push(rows[i].id);
+        }
+    }
+    return ids;
+}
+function nodeChildLists(rows, nodeList) {
+    var visible = visibleIds(rows);
+    var lists = {};
+    for (var i = 0; i < nodeList.length; i++) {
+        var node = nodeList[i];
+        if (!node.parent || !visible[node.id] || !visible[node.parent]) {
+            continue;
+        }
+        var key = String(node.parent);
+        if (!lists[key]) {
+            lists[key] = [];
+        }
+        lists[key].push(node.id);
+    }
+    return lists;
+}
+function domChildLists(root) {
+    var lists = folderLists(root);
+    delete lists['0'];
+    return lists;
+}
+function sameLists(left, right) {
+    var keys = Object.keys(left);
+    if (keys.length !== Object.keys(right).length) {
+        return false;
+    }
+    for (var i = 0; i < keys.length; i++) {
+        var a = left[keys[i]];
+        var b = right[keys[i]];
+        if (!b || a.length !== b.length) {
+            return false;
+        }
+        for (var j = 0; j < a.length; j++) {
+            if (a[j] !== b[j]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+function sidebarMatches(root, rows, nodeList) {
+    if (!sameContent(root, rows)) {
+        return false;
+    }
+    var top = folderItems(root);
+    var wanted = desiredTopIds(rows, nodeList);
+    if (top.length !== wanted.length) {
+        return false;
+    }
+    for (var i = 0; i < wanted.length; i++) {
+        var id = parseInt(top[i].getAttribute('data-folder_id') || '', 10);
+        if (id !== wanted[i]) {
+            return false;
+        }
+    }
+    return sameLists(domChildLists(root), nodeChildLists(rows, nodeList));
+}
+function patchFolderContent(live, fresh) {
+    var liveLink = live.querySelector(':scope > a');
+    var freshLink = fresh.querySelector(':scope > a');
+    if (!liveLink || !freshLink) {
+        return;
+    }
+    var liveName = liveLink.querySelector(':scope > .folder-name');
+    var freshName = freshLink.querySelector(':scope > .folder-name');
+    if (liveName && freshName) {
+        var next = (freshName.textContent || '').replace(/\s+/g, ' ').trim();
+        var current = (liveName.textContent || '').replace(/\s+/g, ' ').trim();
+        if (current !== next) {
+            liveName.textContent = next;
+        }
+    }
+    var nextActive = fresh.getAttribute('data-active-count') || '';
+    if ((live.getAttribute('data-active-count') || '') !== nextActive) {
+        live.setAttribute('data-active-count', nextActive);
+    }
+    var quiet = freshLink.classList.contains('no-active');
+    if (liveLink.classList.contains('no-active') !== quiet) {
+        if (quiet) {
+            liveLink.classList.add('no-active');
+        }
+        else {
+            liveLink.classList.remove('no-active');
+        }
+    }
+    var liveCount = liveLink.querySelector(':scope > .active-count');
+    var freshCount = freshLink.querySelector(':scope > .active-count');
+    var liveText = liveCount ? (liveCount.textContent || '').replace(/\s+/g, '') : '';
+    var freshText = freshCount ? (freshCount.textContent || '').replace(/\s+/g, '') : '';
+    if (liveText !== freshText) {
+        if (liveCount && liveCount.parentNode) {
+            liveCount.parentNode.removeChild(liveCount);
+        }
+        if (freshCount) {
+            liveLink.appendChild(freshCount);
+        }
+    }
+}
+function childListOf(parentLi) {
+    var list = parentLi.querySelector(':scope > ul.nestedtags-children');
+    if (!list) {
+        list = document.createElement('ul');
+        list.className = 'nestedtags-children';
+        parentLi.appendChild(list);
+    }
+    return list;
+}
+function clearEmptyChildLists(root) {
+    var removed = false;
+    var lists = root.querySelectorAll('ul.nestedtags-children');
+    for (var i = lists.length - 1; i >= 0; i--) {
+        var list = lists[i];
+        if (list.querySelector(':scope > li[data-folder_id]')) {
+            continue;
+        }
+        var parent_4 = list.parentElement;
+        if (parent_4) {
+            var toggle = parent_4.querySelector(':scope > a .nestedtags-toggle');
+            if (toggle && toggle.parentNode) {
+                toggle.parentNode.removeChild(toggle);
+            }
+            parent_4.classList.remove('nestedtags-collapsed');
+        }
+        if (list.parentNode) {
+            list.parentNode.removeChild(list);
+            removed = true;
+        }
+    }
+    return removed;
+}
+function syncSidebar(root, rows, nodeList) {
+    var structure = false;
+    var byId = {};
+    var live = root.querySelectorAll('li[data-folder_id]');
+    for (var i = 0; i < live.length; i++) {
+        var item = live[i];
+        var id = parseInt(item.getAttribute('data-folder_id') || '', 10);
+        if (id) {
+            byId[id] = item;
+        }
+    }
+    var wanted = {};
+    for (var i = 0; i < rows.length; i++) {
+        wanted[rows[i].id] = true;
+        var item = byId[rows[i].id];
+        if (!item) {
+            rows[i].element.classList.remove('active');
+            byId[rows[i].id] = rows[i].element;
+            structure = true;
+            continue;
+        }
+        patchFolderContent(item, rows[i].element);
+    }
+    var ids = Object.keys(byId);
+    for (var i = 0; i < ids.length; i++) {
+        var id = Number(ids[i]);
+        if (wanted[id]) {
+            continue;
+        }
+        var item = byId[id];
+        if (item.parentNode) {
+            item.parentNode.removeChild(item);
+        }
+        delete byId[id];
+        structure = true;
+    }
+    var top = desiredTopIds(rows, nodeList);
+    for (var i = 0; i < top.length; i++) {
+        var item = byId[top[i]];
+        if (item && placeAt(root, item, i)) {
+            structure = true;
+        }
+    }
+    var children = nodeChildLists(rows, nodeList);
+    var parents = Object.keys(children);
+    for (var p = 0; p < parents.length; p++) {
+        var parentLi = byId[Number(parents[p])];
+        if (!parentLi) {
+            continue;
+        }
+        var list = childListOf(parentLi);
+        var kids = children[parents[p]];
+        for (var i = 0; i < kids.length; i++) {
+            var item = byId[kids[i]];
+            if (item && placeAt(list, item, i)) {
+                structure = true;
+            }
+        }
+    }
+    if (clearEmptyChildLists(root)) {
+        structure = true;
+    }
+    return structure;
+}
+function finishSidebarStructure(root) {
+    var tops = root.querySelectorAll(':scope > li[data-folder_id]');
+    for (var i = 0; i < tops.length; i++) {
+        markSidebarDepth(tops[i], 0);
+    }
+    applyCollapse(root);
+    paintManage();
+    prepareFolderDrag();
+    paintTags();
+    paintPicker();
+    injectParents(document, '');
+}
+function replaceFolderList(html, iconsKnown, icons, revision) {
+    var root = document.getElementById('folders');
+    if (!root || root.classList.contains('chats')) {
+        return;
+    }
+    if (iconsKnown) {
+        document.dispatchEvent(new CustomEvent('nestedtags:folder-icons', {
+            detail: { icons: icons, revision: revision }
+        }));
+    }
+    var rows = parseFolderRows(html);
+    var epoch = folderEpoch;
+    var token = ++folderSyncToken;
+    var currentReply = function () {
+        return token === folderSyncToken && epoch === folderEpoch;
+    };
+    loadTree(mailboxId(), function () {
+        if (!currentReply()) {
+            return;
+        }
+        var current = document.getElementById('folders');
+        if (!current || current.classList.contains('chats')) {
+            return;
+        }
+        if (sidebarMatches(current, rows, nodes)) {
+            return;
+        }
+        if (syncSidebar(current, rows, nodes)) {
+            finishSidebarStructure(current);
+            return;
+        }
+        refreshFolderLabels();
+    }, currentReply);
+}
+function folderPressOnControl(target) {
+    return target instanceof Element
+        && !!target.closest('.nestedtags-toggle, .nestedtags-more, .nestedtags-menu');
+}
+function rememberFolderPress(event) {
+    folderPressBlocked = folderPressOnControl(event.target);
+}
+function onFolderDragStart(event) {
+    var target = event.target;
+    var pressedControl = folderPressBlocked;
+    folderPressBlocked = false;
+    if (!(target instanceof Element)) {
+        return;
+    }
+    if (pressedControl || folderPressOnControl(target)) {
+        event.preventDefault();
+        return;
+    }
+    var item = target.closest('#folders li[data-folder_id]');
+    if (!(item instanceof HTMLElement)) {
+        return;
+    }
+    var id = parseInt(item.getAttribute('data-folder_id') || '', 10);
+    if (!canDragFolders() || !isCustomFolder(id) || item.getAttribute('draggable') !== 'true') {
+        event.preventDefault();
+        return;
+    }
+    if (folderDragId) {
+        event.preventDefault();
+        return;
+    }
+    folderDragId = id;
+    if (!event.dataTransfer) {
+        return;
+    }
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/x-nestedtags-folder', String(id));
+    event.dataTransfer.setData('text/plain', 'folder:' + String(id));
+    var chip = document.createElement('div');
+    chip.className = 'nestedtags-drag-chip';
+    var label = folderName(id) || (boot && boot.folder) || 'Folder';
+    if (label.length > 48) {
+        label = label.slice(0, 47) + '\u2026';
+    }
+    chip.textContent = label;
+    document.body.appendChild(chip);
+    folderDragChip = chip;
+    event.dataTransfer.setDragImage(chip, 14, chip.offsetHeight + 12);
+}
+function onFolderDragOver(event) {
+    if (!folderDragId) {
+        return;
+    }
+    var hit = folderHit(event);
+    folderLiveHit = hit;
+    if (!hit) {
+        clearFolderMarks();
+        folderDropKey = '';
+        return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+    }
+    var key = hit.mode + ':' + hit.parentId + ':' + hit.beforeId + ':' + (hit.item.getAttribute('data-folder_id') || '');
+    if (key === folderDropKey) {
+        return;
+    }
+    folderDropKey = key;
+    clearFolderMarks();
+    if (hit.mode === 'nest') {
+        hit.item.classList.add('nestedtags-drop-on');
+        return;
+    }
+    var line = document.createElement('li');
+    line.className = 'nestedtags-drop-line';
+    line.setAttribute('aria-hidden', 'true');
+    hit.item.insertAdjacentElement(hit.mode === 'before' ? 'beforebegin' : 'afterend', line);
+    folderDropLine = line;
+}
+function onFolderDrop(event) {
+    if (!folderDragId || !boot) {
+        return;
+    }
+    var hit = folderLiveHit;
+    var moved = folderDragId;
+    var openParent = hit && hit.mode === 'nest' && hit.item.classList.contains('nestedtags-collapsed');
+    clearFolderDrag();
+    if (!hit) {
+        return;
+    }
+    event.preventDefault();
+    fsAjax({
+        action: 'set_parent',
+        mailbox_id: mailboxId(),
+        folder_id: moved,
+        parent_folder_id: hit.parentId,
+        before_folder_id: hit.beforeId
+    }, boot.url, function (response) {
+        if (!response || response.status === 'error') {
+            showAjaxResult(response);
+            window.location.reload();
+            return;
+        }
+        if (openParent) {
+            remember('nestedtags.collapse.' + mailboxId(), parseInt(hit.parentId, 10), false);
+        }
+        applyFolderMove(moved, hit.parentId, hit.beforeId);
+    }, true, function () {
+        window.location.reload();
+    });
+}
+function folderHit(event) {
+    var target = event.target;
+    if (!(target instanceof Element) || !folderDragId) {
+        return null;
+    }
+    var item = target.closest('#folders li[data-folder_id]');
+    if (!(item instanceof HTMLElement)) {
+        return null;
+    }
+    var id = parseInt(item.getAttribute('data-folder_id') || '', 10);
+    if (!isCustomFolder(id) || id === folderDragId || isUnderFolder(id, folderDragId)) {
+        return null;
+    }
+    var row = item.querySelector(':scope > a');
+    if (!(row instanceof HTMLElement)) {
+        return null;
+    }
+    var rect = row.getBoundingClientRect();
+    if (event.clientY < rect.top || event.clientY > rect.bottom) {
+        return null;
+    }
+    var height = rect.bottom - rect.top;
+    var band = Math.max(6, Math.min(12, height * 0.28));
+    if (event.clientY >= rect.top + band && event.clientY <= rect.bottom - band) {
+        return { mode: 'nest', item: item, parentId: String(id), beforeId: '' };
+    }
+    var before = event.clientY < rect.top + band;
+    var beforeId = '';
+    if (before) {
+        beforeId = String(id);
+    }
+    else {
+        var next = nextCustomSibling(item);
+        beforeId = next ? (next.getAttribute('data-folder_id') || '') : '';
+    }
+    if (beforeId === String(folderDragId)) {
+        beforeId = '';
+    }
+    return {
+        mode: before ? 'before' : 'after',
+        item: item,
+        parentId: parentIdOf(id),
+        beforeId: beforeId
+    };
+}
+function isUnderFolder(id, ancestor) {
+    var seen = {};
+    var cursor = id;
+    while (cursor && !seen[cursor]) {
+        seen[cursor] = true;
+        var parent_5 = parentIdOf(cursor);
+        if (!parent_5) {
+            return false;
+        }
+        var parentId = parseInt(parent_5, 10);
+        if (parentId === ancestor) {
+            return true;
+        }
+        cursor = parentId;
+    }
+    return false;
+}
+function nextCustomSibling(item) {
+    var next = item.nextElementSibling;
+    while (next) {
+        if (next instanceof HTMLElement && next.classList.contains('nestedtags-drop-line')) {
+            next = next.nextElementSibling;
+            continue;
+        }
+        if (next instanceof HTMLElement && next.hasAttribute('data-folder_id')) {
+            var id = parseInt(next.getAttribute('data-folder_id') || '', 10);
+            if (id && id !== folderDragId && isCustomFolder(id)) {
+                return next;
+            }
+        }
+        next = next.nextElementSibling;
+    }
+    return null;
+}
+function clearFolderMarks() {
+    var marked = document.querySelectorAll('#folders li.nestedtags-drop-on');
+    for (var i = 0; i < marked.length; i++) {
+        marked[i].classList.remove('nestedtags-drop-on');
+    }
+    if (folderDropLine && folderDropLine.parentNode) {
+        folderDropLine.parentNode.removeChild(folderDropLine);
+    }
+    folderDropLine = null;
+    var lines = document.querySelectorAll('.nestedtags-drop-line');
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var parent_6 = line.parentNode;
+        if (parent_6) {
+            parent_6.removeChild(line);
+        }
+    }
+}
+function clearFolderDrag() {
+    folderDragId = 0;
+    folderDropKey = '';
+    folderLiveHit = null;
+    clearFolderMarks();
+    if (folderDragChip && folderDragChip.parentNode) {
+        folderDragChip.parentNode.removeChild(folderDragChip);
+    }
+    folderDragChip = null;
+}
+function applyFolderMove(movedId, parentRaw, beforeRaw) {
+    folderEpoch++;
+    var root = folderRoot();
+    if (!root) {
+        window.location.reload();
+        return;
+    }
+    var lists = folderLists(root);
+    var parentKey = parentRaw ? parentRaw : '0';
+    var beforeId = beforeRaw ? parseInt(beforeRaw, 10) : 0;
+    relocateFolder(lists, movedId, parentKey, beforeId);
+    for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].id === movedId) {
+            nodes[i].parent = parentKey === '0' ? null : parseInt(parentKey, 10);
+        }
+    }
+    orderNodes(lists);
+    placeTopLevel(root, lists['0'] || []);
+    nestSidebar();
+    paintManage();
+    prepareFolderDrag();
+}
+function folderLists(root) {
+    var lists = { '0': [] };
+    var tops = root.querySelectorAll(':scope > li[data-folder_id]');
+    for (var i = 0; i < tops.length; i++) {
+        var item = tops[i];
+        var id = parseInt(item.getAttribute('data-folder_id') || '', 10);
+        if (!isCustomFolder(id)) {
+            continue;
+        }
+        lists['0'].push(id);
+        collectNestedFolders(item, lists);
+    }
+    return lists;
+}
+function collectNestedFolders(item, lists) {
+    var id = parseInt(item.getAttribute('data-folder_id') || '', 10);
+    var list = item.querySelector(':scope > ul.nestedtags-children');
+    if (!list || !id) {
+        return;
+    }
+    var key = String(id);
+    lists[key] = [];
+    var kids = list.querySelectorAll(':scope > li[data-folder_id]');
+    for (var i = 0; i < kids.length; i++) {
+        var child = kids[i];
+        var childId = parseInt(child.getAttribute('data-folder_id') || '', 10);
+        if (!childId) {
+            continue;
+        }
+        lists[key].push(childId);
+        collectNestedFolders(child, lists);
+    }
+}
+function relocateFolder(lists, moved, parentKey, beforeId) {
+    var keys = Object.keys(lists);
+    for (var i = 0; i < keys.length; i++) {
+        var kept = [];
+        var kids = lists[keys[i]];
+        for (var j = 0; j < kids.length; j++) {
+            if (kids[j] !== moved) {
+                kept.push(kids[j]);
+            }
+        }
+        lists[keys[i]] = kept;
+    }
+    if (!lists[parentKey]) {
+        lists[parentKey] = [];
+    }
+    var siblings = lists[parentKey];
+    var index = siblings.length;
+    if (beforeId) {
+        for (var i = 0; i < siblings.length; i++) {
+            if (siblings[i] === beforeId) {
+                index = i;
+                break;
+            }
+        }
+    }
+    siblings.splice(index, 0, moved);
+}
+function orderNodes(lists) {
+    var rank = {};
+    var next = 1;
+    var visit = function (key) {
+        var kids = lists[key] || [];
+        for (var i = 0; i < kids.length; i++) {
+            rank[kids[i]] = next;
+            next++;
+            visit(String(kids[i]));
+        }
+    };
+    visit('0');
+    nodes.sort(function (a, b) {
+        return (rank[a.id] || 0) - (rank[b.id] || 0);
+    });
+}
+function placeTopLevel(root, ids) {
+    if (!ids.length) {
+        return;
+    }
+    var kids = folderItems(root);
+    var start = kids.length;
+    for (var i = 0; i < kids.length; i++) {
+        var id = parseInt(kids[i].getAttribute('data-folder_id') || '', 10);
+        if (isCustomFolder(id)) {
+            start = i;
+            break;
+        }
+    }
+    for (var i = 0; i < ids.length; i++) {
+        var el = root.querySelector('li[data-folder_id="' + ids[i] + '"]');
+        if (el instanceof HTMLElement) {
+            placeAt(root, el, start + i);
+        }
+    }
 }
 function escapeHtml(value) {
     return value

@@ -5,6 +5,7 @@ namespace Modules\NestedTags\Support;
 use App\Folder;
 use App\Mailbox;
 use Illuminate\Support\Facades\DB;
+use Modules\NestedTags\Events\FolderSidebarRefresh;
 
 class FolderTree
 {
@@ -63,7 +64,7 @@ class FolderTree
     /**
      * @return string|null error code, null when stored
      */
-    public static function setParent($mailbox, $folderId, $parentId)
+    public static function setParent($mailbox, $folderId, $parentId, $beforeId = null)
     {
         if (TreeRules::authorize(self::canUpdate($mailbox)) !== null) {
             return 'forbidden';
@@ -71,6 +72,7 @@ class FolderTree
         $mailboxId = (int) $mailbox->id;
         $folderId = (int) $folderId;
         $parentId = $parentId === null || $parentId === '' ? null : (int) $parentId;
+        $beforeId = $beforeId === null || $beforeId === '' || (int) $beforeId === 0 ? null : (int) $beforeId;
         $folders = self::customFolders($mailboxId);
         $parentOf = self::parents(array_map('intval', array_keys($folders)));
         $folderMailbox = array();
@@ -83,25 +85,214 @@ class FolderTree
         if ($error !== null) {
             return $error;
         }
+        if ($beforeId !== null) {
+            $beforeError = self::rejectBefore($beforeId, $folderId, $parentId, $parentOf, $customIds);
+            if ($beforeError !== null) {
+                return $beforeError;
+            }
+        }
+        $currentParent = isset($parentOf[$folderId]) ? (int) $parentOf[$folderId] : null;
+        $parentChanged = $currentParent !== $parentId;
+        if (!$parentChanged && $beforeId === null) {
+            return null;
+        }
+        $placed = TreeRules::siblingOrder(self::childLists($mailboxId, $parentOf), $folderId, $parentId, $beforeId);
+        if ($placed === null) {
+            return 'type';
+        }
+        $subtree = array_merge(array($folderId), TreeRules::descendants($folderId, $parentOf));
+        $oldTags = array();
+        if ($parentChanged) {
+            foreach ($subtree as $id) {
+                $oldTags[(int) $id] = self::ancestorTagNamesFrom((int) $id, $folders, $parentOf);
+            }
+        }
+        if ($parentChanged) {
+            self::storeParentEdge($folderId, $parentId);
+        }
+        self::writeOrder($mailboxId, $placed['order']);
+        if ($parentChanged) {
+            self::syncMovedTags($mailboxId, $subtree, $folders, $oldTags, TreeRules::reparent($parentOf, $folderId, $parentId));
+        }
+        FolderSidebarRefresh::send($mailboxId);
+
+        return null;
+    }
+
+    /**
+     * @param array<int,int> $parentOf
+     * @param int[] $customIds
+     * @return string|null
+     */
+    protected static function rejectBefore($beforeId, $folderId, $parentId, array $parentOf, array $customIds)
+    {
+        $beforeId = (int) $beforeId;
+        $folderId = (int) $folderId;
+        if ($beforeId === $folderId) {
+            return 'self';
+        }
+        if (!in_array($beforeId, $customIds, true)) {
+            $other = Folder::find($beforeId);
+            if ($other && (int) $other->type !== self::customType()) {
+                return 'type';
+            }
+
+            return 'mailbox';
+        }
+        $beforeParent = isset($parentOf[$beforeId]) ? (int) $parentOf[$beforeId] : null;
+        if ($beforeParent !== $parentId) {
+            return 'type';
+        }
+        if (in_array($beforeId, TreeRules::descendants($folderId, $parentOf), true)) {
+            return 'cycle';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int,int> $parentOf
+     * @return array<int,int[]>
+     */
+    protected static function childLists($mailboxId, array $parentOf)
+    {
+        $ids = array();
+        $rows = Folder::where('mailbox_id', (int) $mailboxId)->where('type', self::customType())->get();
+        foreach ($rows as $folder) {
+            $meta = is_array($folder->meta) ? $folder->meta : array();
+            $ids[] = array(
+                'id' => (int) $folder->id,
+                'order' => isset($meta['order']) ? (int) $meta['order'] : 0,
+            );
+        }
+        usort($ids, function ($a, $b) {
+            if ($a['order'] === $b['order']) {
+                return $a['id'] - $b['id'];
+            }
+
+            return $a['order'] - $b['order'];
+        });
+        $lists = array(0 => array());
+        foreach ($ids as $row) {
+            $parent = isset($parentOf[$row['id']]) ? (int) $parentOf[$row['id']] : 0;
+            if (!isset($lists[$parent])) {
+                $lists[$parent] = array();
+            }
+            $lists[$parent][] = $row['id'];
+        }
+
+        return $lists;
+    }
+
+    protected static function storeParentEdge($folderId, $parentId)
+    {
+        $folderId = (int) $folderId;
         if ($parentId === null) {
             DB::table('folder_tree')->where('folder_id', $folderId)->delete();
 
-            return null;
+            return;
         }
         $exists = DB::table('folder_tree')->where('folder_id', $folderId)->exists();
         if ($exists) {
             DB::table('folder_tree')->where('folder_id', $folderId)->update(array(
-                'parent_folder_id' => $parentId,
+                'parent_folder_id' => (int) $parentId,
             ));
-        } else {
-            DB::table('folder_tree')->insert(array(
-                'folder_id' => $folderId,
-                'parent_folder_id' => $parentId,
-            ));
-        }
-        self::inheritFromFolder($mailboxId, $folderId);
 
-        return null;
+            return;
+        }
+        DB::table('folder_tree')->insert(array(
+            'folder_id' => $folderId,
+            'parent_folder_id' => (int) $parentId,
+        ));
+    }
+
+    /**
+     * @param array<int,int> $order
+     */
+    protected static function writeOrder($mailboxId, array $order)
+    {
+        if (!$order) {
+            return;
+        }
+        $rows = Folder::where('mailbox_id', (int) $mailboxId)
+            ->where('type', self::customType())
+            ->whereIn('id', array_keys($order))
+            ->get();
+        foreach ($rows as $folder) {
+            $position = isset($order[(int) $folder->id]) ? (int) $order[(int) $folder->id] : 0;
+            if ($position < 1) {
+                continue;
+            }
+            $meta = is_array($folder->meta) ? $folder->meta : array();
+            if (isset($meta['order']) && (int) $meta['order'] === $position) {
+                continue;
+            }
+            $meta['order'] = $position;
+            $folder->meta = $meta;
+            $folder->save();
+        }
+    }
+
+    /**
+     * @param array<int,array{name:string,tag:string}> $folders
+     * @param array<int,int> $parentOf
+     * @return string[]
+     */
+    protected static function ancestorTagNamesFrom($folderId, array $folders, array $parentOf)
+    {
+        $names = array();
+        foreach (TreeRules::ancestors((int) $folderId, $parentOf) as $id) {
+            if (!empty($folders[$id]['tag'])) {
+                $names[] = $folders[$id]['tag'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param int[] $subtree
+     * @param array<int,array{name:string,tag:string}> $folders
+     * @param array<int,string[]> $oldTags
+     * @param array<int,int|null> $newParentOf
+     */
+    protected static function syncMovedTags($mailboxId, array $subtree, array $folders, array $oldTags, array $newParentOf)
+    {
+        if (!class_exists(\Modules\Tags\Entities\Tag::class)) {
+            return;
+        }
+        foreach ($subtree as $id) {
+            $id = (int) $id;
+            $own = isset($folders[$id]['tag']) ? (string) $folders[$id]['tag'] : '';
+            if ($own === '') {
+                continue;
+            }
+            $delta = TreeRules::tagDelta(
+                isset($oldTags[$id]) ? $oldTags[$id] : array(),
+                self::ancestorTagNamesFrom($id, $folders, $newParentOf),
+                $own
+            );
+            if (!$delta['add'] && !$delta['remove']) {
+                continue;
+            }
+            $tag = \Modules\Tags\Entities\Tag::where('name', $own)->first();
+            if (!$tag) {
+                continue;
+            }
+            $conversationIds = DB::table('conversation_tag')
+                ->join('conversations', 'conversations.id', '=', 'conversation_tag.conversation_id')
+                ->where('conversation_tag.tag_id', $tag->id)
+                ->where('conversations.mailbox_id', (int) $mailboxId)
+                ->pluck('conversations.id');
+            foreach ($conversationIds as $conversationId) {
+                foreach ($delta['add'] as $name) {
+                    \Modules\Tags\Entities\Tag::attachByName($name, (int) $conversationId);
+                }
+                foreach ($delta['remove'] as $name) {
+                    \Modules\Tags\Entities\Tag::detachByName($name, (int) $conversationId);
+                }
+            }
+        }
     }
 
     /**
@@ -307,7 +498,24 @@ class FolderTree
         $out = array();
         $type = self::customType();
         $rows = Folder::where('mailbox_id', (int) $mailboxId)->where('type', $type)->get();
+        $ranked = array();
         foreach ($rows as $folder) {
+            $meta = is_array($folder->meta) ? $folder->meta : array();
+            $ranked[] = array(
+                'folder' => $folder,
+                'order' => isset($meta['order']) ? (int) $meta['order'] : 0,
+                'id' => (int) $folder->id,
+            );
+        }
+        usort($ranked, function ($a, $b) {
+            if ($a['order'] === $b['order']) {
+                return $a['id'] - $b['id'];
+            }
+
+            return $a['order'] - $b['order'];
+        });
+        foreach ($ranked as $row) {
+            $folder = $row['folder'];
             $meta = is_array($folder->meta) ? $folder->meta : array();
             $name = isset($meta['name']) ? (string) $meta['name'] : '';
             $tag = '';

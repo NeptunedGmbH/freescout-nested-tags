@@ -204,4 +204,116 @@ class TreeRules
 
         return implode('/', $parts);
     }
+
+    /**
+     * Move one folder in the sibling lists and number every custom folder in depth-first order.
+     * $childLists keys are parent ids, 0 is the top level. Descendants of the moved folder stay in their lists.
+     * Returns null when $beforeId is set and is not a sibling under the new parent.
+     *
+     * @param array<int,int[]> $childLists
+     * @return array{order:array<int,int>, parentOf:array<int,int|null>}|null
+     */
+    public static function siblingOrder(array $childLists, $movedId, $newParent, $beforeId)
+    {
+        $movedId = (int) $movedId;
+        $newParent = ($newParent === null || $newParent === '' || (int) $newParent === 0) ? 0 : (int) $newParent;
+        $beforeId = ($beforeId === null || $beforeId === '' || (int) $beforeId === 0) ? 0 : (int) $beforeId;
+        $lists = array();
+        foreach ($childLists as $parent => $kids) {
+            $clean = array();
+            foreach ($kids as $kid) {
+                $kid = (int) $kid;
+                if ($kid === $movedId || $kid === 0) {
+                    continue;
+                }
+                $clean[] = $kid;
+            }
+            $lists[(int) $parent] = $clean;
+        }
+        if (!isset($lists[$newParent])) {
+            $lists[$newParent] = array();
+        }
+        $siblings = $lists[$newParent];
+        $index = count($siblings);
+        if ($beforeId !== 0) {
+            $found = array_search($beforeId, $siblings, true);
+            if ($found === false) {
+                return null;
+            }
+            $index = (int) $found;
+        }
+        array_splice($siblings, $index, 0, array($movedId));
+        $lists[$newParent] = $siblings;
+
+        $order = array();
+        $parentOf = array();
+        $next = 1;
+        $visit = function ($parent) use (&$visit, &$lists, &$order, &$parentOf, &$next) {
+            $kids = isset($lists[$parent]) ? $lists[$parent] : array();
+            foreach ($kids as $kid) {
+                if (isset($order[$kid])) {
+                    continue;
+                }
+                $order[$kid] = $next;
+                $next++;
+                $parentOf[$kid] = $parent === 0 ? null : $parent;
+                $visit($kid);
+            }
+        };
+        $visit(0);
+
+        return array(
+            'order' => $order,
+            'parentOf' => $parentOf,
+        );
+    }
+
+    /**
+     * Ancestor tags to add and remove. The folder's own tag is never part of the result.
+     *
+     * @param string[] $oldAncestors
+     * @param string[] $newAncestors
+     * @return array{add:string[], remove:string[]}
+     */
+    public static function tagDelta(array $oldAncestors, array $newAncestors, $ownTag = '')
+    {
+        $own = strtolower(trim((string) $ownTag));
+        $pack = function (array $list) use ($own) {
+            $out = array();
+            foreach ($list as $tag) {
+                $tag = trim((string) $tag);
+                if ($tag === '') {
+                    continue;
+                }
+                $key = strtolower($tag);
+                if ($own !== '' && $key === $own) {
+                    continue;
+                }
+                if (!isset($out[$key])) {
+                    $out[$key] = $tag;
+                }
+            }
+
+            return $out;
+        };
+        $old = $pack($oldAncestors);
+        $new = $pack($newAncestors);
+        $add = array();
+        $remove = array();
+        foreach ($new as $key => $tag) {
+            if (!isset($old[$key])) {
+                $add[] = $tag;
+            }
+        }
+        foreach ($old as $key => $tag) {
+            if (!isset($new[$key])) {
+                $remove[] = $tag;
+            }
+        }
+
+        return array(
+            'add' => $add,
+            'remove' => $remove,
+        );
+    }
 }

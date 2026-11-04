@@ -57,4 +57,30 @@ $folders[3] = array('name' => 'Onboarding two', 'tag' => 'onboarding');
 $paths = TreeRules::tagPaths($folders, array(2 => 1));
 expect('shared tag has no path', !isset($paths['onboarding']));
 
+$nested = TreeRules::siblingOrder(array(
+    0 => array(1, 2, 4),
+    2 => array(3),
+), 2, 1, null);
+expect('onboarding under personal', $nested && $nested['parentOf'][2] === 1 && $nested['parentOf'][3] === 2);
+expect('payroll stays under onboarding', $nested && $nested['order'] === array(1 => 1, 2 => 2, 3 => 3, 4 => 4));
+
+$gap = TreeRules::siblingOrder(array(
+    0 => array(2, 5, 3),
+), 2, null, 3);
+expect('gap keeps top level', $gap && $gap['parentOf'][2] === null && $gap['order'] === array(5 => 1, 2 => 2, 3 => 3));
+
+$lifted = TreeRules::siblingOrder(array(
+    0 => array(1, 4),
+    1 => array(2),
+    2 => array(3),
+), 2, null, 4);
+expect('top level clears parent', $lifted && $lifted['parentOf'][2] === null && $lifted['parentOf'][3] === 2);
+expect('children follow lifted folder', $lifted && $lifted['order'][3] === $lifted['order'][2] + 1);
+
+$delta = TreeRules::tagDelta(array('Personal', 'Team'), array('Projects', 'Team'), 'onboarding');
+expect('personal tag leaves', $delta['remove'] === array('Personal'));
+expect('projects tag arrives', $delta['add'] === array('Projects'));
+expect('team tag stays', !in_array('Team', $delta['add'], true) && !in_array('Team', $delta['remove'], true));
+expect('own tag stays out', !in_array('onboarding', $delta['add'], true) && !in_array('onboarding', $delta['remove'], true));
+
 exit($failed === 0 ? 0 : 1);

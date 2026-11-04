@@ -35,7 +35,8 @@ class NestedTagsController extends Controller
             $error = FolderTree::setParent(
                 $mailbox,
                 (int) $request->input('folder_id'),
-                $request->input('parent_folder_id')
+                $request->input('parent_folder_id'),
+                $request->input('before_folder_id')
             );
 
             return $error ? $this->fail($this->message($error)) : $this->ok();

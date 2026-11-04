@@ -1,6 +1,7 @@
 interface NestedResponse {
     status?: string;
     id?: number;
+    name?: string;
     msg_success?: string;
     msg?: string;
     names?: string[];
@@ -51,7 +52,36 @@ interface AjaxOptions {
     success?: (data: NestedResponse) => void;
 }
 
+interface FolderSidebarIcon {
+    kind?: string;
+    value?: string;
+    color?: string;
+}
+
+interface FolderSidebarPayload {
+    mailbox_id?: number;
+    folders_html?: string;
+    icons?: Record<string, FolderSidebarIcon>;
+    icon_revision?: number;
+}
+
+interface PolycastEnvelope {
+    id?: number | string;
+}
+
+interface PolycastChannel {
+    on(event: string, handler: (data: FolderSidebarPayload, envelope?: PolycastEnvelope) => void): void;
+}
+
+interface PolycastClient {
+    options?: { polling?: number };
+    subscribe(name: string): PolycastChannel;
+}
+
+declare const poly: PolycastClient | undefined;
+
 interface JQueryStatic {
+    (ready: () => void): void;
     (selector: string | Element | Document): JQueryCollection;
     ajaxPrefilter(handler: (options: AjaxOptions) => void): void;
 }
@@ -62,6 +92,7 @@ interface JQueryCollection {
     each(handler: (this: HTMLElement, index: number) => void): JQueryCollection;
     on(event: string, handler: () => void): JQueryCollection;
     data(key: string): unknown;
+    modal?(action: string): void;
 }
 
 declare const $: JQueryStatic;
@@ -94,6 +125,7 @@ interface Window {
     initNewFolder?: (modal: JQueryCollection) => void;
     initCustomFoldersForm?: (selector: string, action: string) => void;
     nestedtagsStart?: (boot: NestedBoot) => void;
+    iconpickerReleaseFolderSave?: () => void;
 }
 
 declare function showModal(params: ModalParams): void;

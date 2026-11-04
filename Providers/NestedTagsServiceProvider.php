@@ -30,6 +30,8 @@ class NestedTagsServiceProvider extends ServiceProvider
             return;
         }
 
+        $this->broadcastCustomFolderSaves();
+
         \Eventy::addFilter('stylesheets', function ($styles) {
             $styles[] = \Module::getPublicPath('nestedtags').'/css/module.css';
 
@@ -58,9 +60,19 @@ class NestedTagsServiceProvider extends ServiceProvider
             } catch (\Throwable $e) {
                 $routeName = '';
             }
-            $mailboxId = 0;
-            if (strpos($routeName, 'mailboxes.') === 0) {
-                $mailboxId = (int) (request()->route('mailbox_id') ?: request()->route('id') ?: 0);
+            $mailboxId = (int) (request()->route('mailbox_id') ?: 0);
+            if ($mailboxId === 0 && strpos($routeName, 'mailboxes.') === 0) {
+                $mailboxId = (int) (request()->route('id') ?: 0);
+            }
+            if ($mailboxId === 0 && $routeName === 'conversations.view') {
+                try {
+                    $conversation = \App\Conversation::find((int) request()->route('id'));
+                    if ($conversation) {
+                        $mailboxId = (int) $conversation->mailbox_id;
+                    }
+                } catch (\Throwable $e) {
+                    $mailboxId = 0;
+                }
             }
             $tree = array('nodes' => array(), 'paths' => new \stdClass());
             $mailbox = null;
@@ -136,5 +148,91 @@ class NestedTagsServiceProvider extends ServiceProvider
         }
 
         return $module && !empty($module->activated);
+    }
+
+    /**
+     * Create, update, and delete already go through Custom Folders.
+     * A successful response is the only point that publishes the folder list.
+     */
+    protected function broadcastCustomFolderSaves()
+    {
+        \Event::listen(\Illuminate\Routing\Events\RouteMatched::class, function ($event) {
+            $route = $event->route;
+            $name = $route ? (string) $route->getName() : '';
+            if ($name !== 'mailboxes.custom_folders.ajax') {
+                return;
+            }
+            $request = $event->request;
+            $action = (string) $request->input('action');
+            if (!in_array($action, array('create', 'update', 'delete', 'update_sort_order'), true)) {
+                return;
+            }
+            $mailboxId = (int) $request->input('mailbox_id');
+            if ($mailboxId < 1) {
+                $mailboxId = $this->mailboxIdFromFolderRequest($request);
+            }
+            if ($mailboxId > 0) {
+                $request->attributes->set('nestedtags_folders_mailbox', $mailboxId);
+            }
+        });
+
+        \Event::listen(\Illuminate\Foundation\Http\Events\RequestHandled::class, function ($event) {
+            $request = $event->request;
+            if (!$request->attributes->has('nestedtags_folders_mailbox')) {
+                return;
+            }
+            $mailboxId = (int) $request->attributes->get('nestedtags_folders_mailbox');
+            if ($mailboxId < 1 || !$this->customFolderAjaxSucceeded($event->response)) {
+                return;
+            }
+            \Modules\NestedTags\Events\FolderSidebarRefresh::send($mailboxId);
+        });
+    }
+
+    /**
+     * Delete and sort requests name folders, not the mailbox.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return int
+     */
+    protected function mailboxIdFromFolderRequest($request)
+    {
+        $folderId = (int) $request->input('folder_id');
+        if ($folderId > 0) {
+            $folder = \App\Folder::find($folderId);
+            if ($folder) {
+                return (int) $folder->mailbox_id;
+            }
+        }
+        $ids = $request->input('folders');
+        if (!is_array($ids)) {
+            return 0;
+        }
+        foreach ($ids as $id) {
+            $folder = \App\Folder::find((int) $id);
+            if ($folder) {
+                return (int) $folder->mailbox_id;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param mixed $response
+     * @return bool
+     */
+    protected function customFolderAjaxSucceeded($response)
+    {
+        if (!is_object($response) || !method_exists($response, 'getData')) {
+            return false;
+        }
+        try {
+            $data = $response->getData(true);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return is_array($data) && isset($data['status']) && $data['status'] === 'success';
     }
 }

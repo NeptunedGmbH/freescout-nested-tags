@@ -31,7 +31,8 @@
     color: #93a1af;
 }
 
-#folders li.nestedtags-child > a .glyphicon {
+#folders li.nestedtags-child > a .glyphicon,
+#folders li.nestedtags-child > a .iconpicker-mark {
     color: #b5c1cc;
     font-size: 16px;
     left: 38px;
@@ -44,7 +45,8 @@
     padding-left: 82px;
 }
 
-#folders li[data-nestedtags-depth="2"] > a .glyphicon {
+#folders li[data-nestedtags-depth="2"] > a .glyphicon,
+#folders li[data-nestedtags-depth="2"] > a .iconpicker-mark {
     left: 56px;
 }
 
@@ -52,19 +54,22 @@
     padding-left: 100px;
 }
 
-#folders li[data-nestedtags-depth="3"] > a .glyphicon {
+#folders li[data-nestedtags-depth="3"] > a .glyphicon,
+#folders li[data-nestedtags-depth="3"] > a .iconpicker-mark {
     left: 74px;
 }
 
 #folders li.active > ul.nestedtags-children a,
-#folders li.active > ul.nestedtags-children .glyphicon {
+#folders li.active > ul.nestedtags-children .glyphicon,
+#folders li.active > ul.nestedtags-children .iconpicker-mark {
     color: #4f5d6b;
     font-weight: 400;
     background-color: transparent;
 }
 
 #folders li.active > ul.nestedtags-children li.active > a,
-#folders li.active > ul.nestedtags-children li.active > a .glyphicon {
+#folders li.active > ul.nestedtags-children li.active > a .glyphicon,
+#folders li.active > ul.nestedtags-children li.active > a .iconpicker-mark {
     color: #005a9e;
     font-weight: 700;
     background-color: #deecf9;
@@ -104,12 +109,14 @@ body.dm #folders li.active > ul.nestedtags-children a {
 }
 
 body.dm #folders li.nestedtags-child > a .glyphicon,
+body.dm #folders li.nestedtags-child > a .iconpicker-mark,
 body.dm #folders .nestedtags-toggle {
     color: #8b99a6;
 }
 
 body.dm #folders li.active > ul.nestedtags-children li.active > a,
-body.dm #folders li.active > ul.nestedtags-children li.active > a .glyphicon {
+body.dm #folders li.active > ul.nestedtags-children li.active > a .glyphicon,
+body.dm #folders li.active > ul.nestedtags-children li.active > a .iconpicker-mark {
     color: #9ec5f5;
     background-color: #1c3a57;
 }
@@ -118,37 +125,16 @@ body.dm #folders .nestedtags-toggle {
     color: #c8c8c8;
 }
 
+.nestedtags-add-wrap {
+    margin-bottom: 18px;
+}
+
 .nestedtags-add {
     display: block;
     box-sizing: border-box;
-    width: calc(100% - 30px);
-    margin: 0 15px 18px;
-    padding: 0 18px;
-    border: 1px solid #d3dae0;
-    border-radius: 14px;
-    background: transparent;
-    color: #93a1af;
-    font-size: 14px;
-    font-weight: normal;
-    line-height: 34px;
+    width: 100%;
+    float: none;
     text-align: center;
-    cursor: pointer;
-}
-
-.nestedtags-add .glyphicon {
-    position: static;
-    top: 2px;
-    margin-right: 6px;
-    color: inherit;
-    font-size: 12px;
-}
-
-.nestedtags-add:hover,
-.nestedtags-add:focus {
-    border-color: #d3dae0;
-    background: transparent;
-    color: #0078d7;
-    outline: none;
 }
 
 #folders li.nestedtags-manageable {
@@ -165,13 +151,16 @@ body.dm #folders .nestedtags-toggle {
     height: 22px;
     margin: 0;
     padding: 0;
-    border: 0;
     border-radius: 4px;
-    background: #fff;
-    color: #607080;
     font-size: 16px;
     line-height: 18px;
     cursor: pointer;
+}
+
+body:not(.dm) #folders li.nestedtags-manageable > .nestedtags-more {
+    border: 0;
+    background: #fff;
+    color: #607080;
 }
 
 #folders li.nestedtags-manageable:hover > .nestedtags-more,
@@ -215,22 +204,6 @@ body.dm #folders .nestedtags-toggle {
     outline: none;
 }
 
-body.dm .nestedtags-add,
-.dm .nestedtags-add {
-    border-color: #8b939c;
-    background: transparent;
-    color: #a8a8a8;
-}
-
-body.dm .nestedtags-add:hover,
-body.dm .nestedtags-add:focus,
-.dm .nestedtags-add:hover,
-.dm .nestedtags-add:focus {
-    border-color: #8b939c;
-    background: transparent;
-    color: #d4d4d4;
-}
-
 form.nestedtags-simple > .form-group,
 form.nestedtags-simple > hr {
     display: none;
@@ -263,8 +236,12 @@ body.dm .nestedtags-name-hint {
 }
 
 body.dm #folders li.nestedtags-manageable > .nestedtags-more {
-    background: #1b222a;
-    color: #d0d6dc;
+    color: #b9d4ff;
+}
+
+body.dm #folders li.nestedtags-manageable > .nestedtags-more:hover,
+body.dm #folders li.nestedtags-manageable > .nestedtags-more:focus {
+    color: #e7f1ff;
 }
 
 body.dm .nestedtags-menu {
@@ -291,4 +268,53 @@ body.dm .nestedtags-menu button:focus {
 
 body.dm #custom-folders-index > .panel.nestedtags-nest-target > .panel-heading {
     box-shadow: inset 4px 0 0 #8eb6e8;
+}
+
+.nestedtags-drag-chip {
+    position: fixed;
+    top: -1000px;
+    left: 0;
+    z-index: 4000;
+    max-width: 220px;
+    padding: 3px 8px;
+    background: #fff;
+    border: 1px solid #d5dde5;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.16);
+    color: #314351;
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
+#folders li.nestedtags-drop-on > a {
+    box-shadow: inset 3px 0 0 #4a90d9;
+}
+
+#folders li.nestedtags-drop-line {
+    height: 2px;
+    margin: 0 16px;
+    padding: 0;
+    list-style: none;
+    background: #4a90d9;
+    pointer-events: none;
+}
+
+body.dm .nestedtags-drag-chip {
+    background: #222830;
+    border-color: #3a4450;
+    color: #e6e6e6;
+}
+
+body.dm #folders li.nestedtags-drop-on > a,
+body.dm #folders li.nestedtags-drop-line {
+    box-shadow: inset 3px 0 0 #8eb6e8;
+}
+
+body.dm #folders li.nestedtags-drop-line {
+    background: #8eb6e8;
+    box-shadow: none;
 }
