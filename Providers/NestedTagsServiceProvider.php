@@ -13,6 +13,7 @@ class NestedTagsServiceProvider extends ServiceProvider
         $this->commands(array(
             \Modules\NestedTags\Console\HealthCommand::class,
             \Modules\NestedTags\Console\InheritCommand::class,
+            \Modules\NestedTags\Console\FoldersFromMailboxCommand::class,
         ));
     }
 

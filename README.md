@@ -45,6 +45,14 @@ Exit code 0 means healthy, exit code 1 does not. The command does not write, doe
 
 `version.txt` on `main` is the version line. Release 0.2 publishes `NestedTags.zip`. `scripts/sha256sums.sh` writes `SHA256SUMS` in GNU format `<64 hex>  NestedTags.zip` and rejects any other filename. The workflow `.github/workflows/sha256sums.yml` attaches that file to a release that already contains `NestedTags.zip`.
 
+## Beta: folders from a connected mailbox
+
+```bash
+php artisan nestedtags:folders-from-mailbox {mailbox_id}
+```
+
+Beta. The command reads the folders of a mailbox already connected in FreeScout and creates custom folders with that hierarchy. Gmail shows its labels as those folders, so `Personal/Onboarding` becomes Onboarding under Personal. It does not open a second login, does not change the mailbox, and does not retag conversations. Inbox and the `[Gmail]` system folders are skipped. A mailbox that only offers INBOX is left unchanged.
+
 ## UI
 
 The browser code lives in `src/module.ts` and is built on the host into `Public/js/module.js`. The container has no Node.

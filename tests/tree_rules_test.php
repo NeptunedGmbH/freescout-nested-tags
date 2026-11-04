@@ -83,4 +83,34 @@ expect('projects tag arrives', $delta['add'] === array('Projects'));
 expect('team tag stays', !in_array('Team', $delta['add'], true) && !in_array('Team', $delta['remove'], true));
 expect('own tag stays out', !in_array('onboarding', $delta['add'], true) && !in_array('onboarding', $delta['remove'], true));
 
+$labels = TreeRules::labelTree(array(
+    array('name' => 'Personal/Onboarding', 'delimiter' => '/'),
+    array('name' => 'INBOX', 'delimiter' => '/'),
+    array('name' => '[Gmail]/Sent Mail', 'delimiter' => '/'),
+));
+$byTag = array();
+foreach ($labels as $node) {
+    $byTag[strtolower($node['tag'])] = $node;
+}
+expect('onboarding under personal', isset($byTag['onboarding']) && $byTag['onboarding']['parent'] === 'personal');
+expect('personal is a root', isset($byTag['personal']) && $byTag['personal']['parent'] === null);
+expect('inbox is skipped', !isset($byTag['inbox']));
+expect('sent mail is skipped', !isset($byTag['sent mail']) && !isset($byTag['[gmail]']));
+
+$writes = TreeRules::labelWrites(array(
+    array('name' => 'Personal/Onboarding', 'delimiter' => '/'),
+    array('name' => 'Hosting', 'delimiter' => '/'),
+), array(
+    10 => array('tag' => 'onboarding', 'name' => 'Onboarding'),
+    11 => array('tag' => 'Workspace', 'name' => 'Workspace'),
+));
+$created = array();
+foreach ($writes['create'] as $node) {
+    $created[] = strtolower($node['tag']);
+}
+sort($created);
+expect('existing tag is not created again', $created === array('hosting', 'personal'));
+expect('onboarding keeps personal as parent', $writes['edges']['onboarding'] === 'personal');
+expect('folder outside the list stays', $writes['untouched'] === array(11));
+
 exit($failed === 0 ? 0 : 1);

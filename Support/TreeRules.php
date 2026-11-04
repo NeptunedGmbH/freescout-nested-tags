@@ -316,4 +316,110 @@ class TreeRules
             'remove' => $remove,
         );
     }
+
+    /**
+     * Turn a mailbox folder list into short tags and parent links.
+     * System folders and the Gmail container are left out.
+     * A parent is the lowercase tag of the segment above, or null.
+     *
+     * @param array<int,array{name:string,delimiter?:string,system?:bool}> $folders
+     * @return array<int,array{tag:string,name:string,parent:?string}>
+     */
+    public static function labelTree(array $folders)
+    {
+        $nodes = array();
+        $order = array();
+        foreach ($folders as $folder) {
+            $name = isset($folder['name']) ? trim((string) $folder['name']) : '';
+            $delimiter = isset($folder['delimiter']) && (string) $folder['delimiter'] !== ''
+                ? (string) $folder['delimiter']
+                : '/';
+            if ($name === '' || !empty($folder['system']) || self::systemMailboxFolder($name, $delimiter)) {
+                continue;
+            }
+            $parts = array();
+            foreach (explode($delimiter, $name) as $part) {
+                $part = trim($part);
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+            }
+            $parent = null;
+            foreach ($parts as $part) {
+                $key = strtolower($part);
+                if (!isset($nodes[$key])) {
+                    $nodes[$key] = array(
+                        'tag' => $part,
+                        'name' => $part,
+                        'parent' => $parent,
+                    );
+                    $order[] = $key;
+                }
+                $parent = $key;
+            }
+        }
+        $out = array();
+        foreach ($order as $key) {
+            $out[] = $nodes[$key];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int,array{name:string,delimiter?:string,system?:bool}> $listed
+     * @param array<int,array{tag:string,name:string}> $existing
+     * @return array{create:array,edges:array<string,?string>,untouched:int[]}
+     */
+    public static function labelWrites(array $listed, array $existing)
+    {
+        $have = array();
+        foreach ($existing as $folder) {
+            $tag = isset($folder['tag']) ? strtolower(trim((string) $folder['tag'])) : '';
+            if ($tag !== '') {
+                $have[$tag] = true;
+            }
+        }
+        $planned = array();
+        $create = array();
+        $edges = array();
+        foreach (self::labelTree($listed) as $node) {
+            $key = strtolower($node['tag']);
+            $planned[$key] = true;
+            $edges[$key] = $node['parent'];
+            if (!isset($have[$key])) {
+                $create[] = $node;
+            }
+        }
+        $untouched = array();
+        foreach ($existing as $id => $folder) {
+            $tag = isset($folder['tag']) ? strtolower(trim((string) $folder['tag'])) : '';
+            if ($tag === '' || !isset($planned[$tag])) {
+                $untouched[] = (int) $id;
+            }
+        }
+
+        return array(
+            'create' => $create,
+            'edges' => $edges,
+            'untouched' => $untouched,
+        );
+    }
+
+    public static function systemMailboxFolder($name, $delimiter = '/')
+    {
+        $name = trim((string) $name);
+        if ($name === '') {
+            return true;
+        }
+        if (strcasecmp($name, 'INBOX') === 0) {
+            return true;
+        }
+        if (strcasecmp($name, '[Gmail]') === 0) {
+            return true;
+        }
+        $prefix = '[Gmail]'.$delimiter;
+
+        return stripos($name, $prefix) === 0;
+    }
 }

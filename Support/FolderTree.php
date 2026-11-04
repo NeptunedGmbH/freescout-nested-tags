@@ -64,9 +64,9 @@ class FolderTree
     /**
      * @return string|null error code, null when stored
      */
-    public static function setParent($mailbox, $folderId, $parentId, $beforeId = null)
+    public static function setParent($mailbox, $folderId, $parentId, $beforeId = null, $operator = false)
     {
-        if (TreeRules::authorize(self::canUpdate($mailbox)) !== null) {
+        if (!$operator && TreeRules::authorize(self::canUpdate($mailbox)) !== null) {
             return 'forbidden';
         }
         $mailboxId = (int) $mailbox->id;
@@ -102,7 +102,7 @@ class FolderTree
         }
         $subtree = array_merge(array($folderId), TreeRules::descendants($folderId, $parentOf));
         $oldTags = array();
-        if ($parentChanged) {
+        if ($parentChanged && !$operator) {
             foreach ($subtree as $id) {
                 $oldTags[(int) $id] = self::ancestorTagNamesFrom((int) $id, $folders, $parentOf);
             }
@@ -111,7 +111,7 @@ class FolderTree
             self::storeParentEdge($folderId, $parentId);
         }
         self::writeOrder($mailboxId, $placed['order']);
-        if ($parentChanged) {
+        if ($parentChanged && !$operator) {
             self::syncMovedTags($mailboxId, $subtree, $folders, $oldTags, TreeRules::reparent($parentOf, $folderId, $parentId));
         }
         FolderSidebarRefresh::send($mailboxId);
@@ -590,6 +590,110 @@ class FolderTree
         }
         $tag->counter = $remaining;
         $tag->save();
+    }
+
+    /**
+     * Read the folder list through the mailbox connection FreeScout already stores.
+     * Null means the list did not arrive complete, so the caller must not write.
+     *
+     * @return array<int,array{name:string,delimiter:string,system:bool}>|null
+     */
+    public static function listMailboxFolders($mailbox)
+    {
+        if (!$mailbox || !class_exists(\MailHelper::class)) {
+            return null;
+        }
+        $client = null;
+        try {
+            $client = \MailHelper::getMailboxClient($mailbox);
+            $client->connect();
+            $folders = $client->getFolders(false);
+        } catch (\Throwable $e) {
+            return null;
+        } finally {
+            if ($client) {
+                try {
+                    $client->disconnect();
+                } catch (\Throwable $e) {
+                }
+            }
+        }
+        $listed = array();
+        foreach ($folders as $folder) {
+            $listed[] = array(
+                'name' => (string) $folder->full_name,
+                'delimiter' => (string) $folder->delimiter,
+                'system' => !empty($folder->no_select),
+            );
+        }
+
+        return $listed;
+    }
+
+    /**
+     * Create missing custom folders and parent edges from a folder list.
+     * Conversation tags are left alone.
+     *
+     * @param array<int,array{name:string,delimiter?:string,system?:bool}> $listed
+     */
+    public static function buildFromMailboxLabels($mailbox, array $listed)
+    {
+        $mailboxId = (int) $mailbox->id;
+        $existing = self::customFolders($mailboxId);
+        $writes = TreeRules::labelWrites($listed, $existing);
+        $byTag = array();
+        foreach ($existing as $id => $folder) {
+            $tag = strtolower(trim((string) $folder['tag']));
+            if ($tag !== '' && !isset($byTag[$tag])) {
+                $byTag[$tag] = (int) $id;
+            }
+        }
+        foreach ($writes['create'] as $node) {
+            $id = self::createLabeledFolder($mailbox, $node['name'], $node['tag']);
+            $byTag[strtolower($node['tag'])] = $id;
+        }
+        foreach ($writes['edges'] as $tag => $parentTag) {
+            if (!isset($byTag[$tag])) {
+                continue;
+            }
+            $parentId = null;
+            if ($parentTag !== null && isset($byTag[$parentTag])) {
+                $parentId = $byTag[$parentTag];
+            }
+            self::setParent($mailbox, $byTag[$tag], $parentId, null, true);
+        }
+    }
+
+    protected static function createLabeledFolder($mailbox, $name, $tagName)
+    {
+        $tag = null;
+        if (class_exists(\Modules\Tags\Entities\Tag::class)) {
+            $tag = \Modules\Tags\Entities\Tag::where('name', $tagName)->first();
+            if (!$tag) {
+                $tag = \Modules\Tags\Entities\Tag::getOrCreate(array('name' => $tagName));
+            }
+        }
+        $folder = new Folder();
+        $folder->mailbox_id = (int) $mailbox->id;
+        $folder->type = self::customType();
+        $meta = array(
+            'order' => 1000,
+            'name' => $name,
+            'counter' => (int) Folder::COUNTER_ACTIVE,
+            'own_only' => '',
+            'unassigned' => '',
+            'icon' => '',
+        );
+        if ($tag) {
+            $meta['tag_id'] = (int) $tag->id;
+        }
+        $folder->meta = $meta;
+        $folder->save();
+        if (class_exists(\CustomFolder::class)) {
+            \CustomFolder::setCounters($folder->fresh());
+        }
+
+        return (int) $folder->id;
     }
 
     protected static function customType()
