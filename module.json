@@ -2,7 +2,7 @@
     "name": "NestedTags",
     "alias": "nestedtags",
     "description": "Add-on for Custom Folders: nest folders the way Gmail nests labels.",
-    "version": "0.2",
+    "version": "0.3",
     "requiredModules": {
         "customfolders": "1.0.0"
     },

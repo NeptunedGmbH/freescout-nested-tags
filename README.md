@@ -1,6 +1,6 @@
 # NestedTags
 
-Add-on for the official [Custom Folders](https://freescout.net/module/custom-folders/) module. Version 0.2.
+Add-on for the official [Custom Folders](https://freescout.net/module/custom-folders/) module. Version 0.3.
 
 Nests custom folders the way Gmail nests labels. The sidebar shows the short folder name, indented. On a conversation the path reads `Personal/Onboarding`. A click opens only that label.
 
@@ -43,7 +43,7 @@ php artisan nestedtags:health --json
 
 Exit code 0 means healthy, exit code 1 does not. The command does not write, does not migrate, and does not open an outbound connection.
 
-`version.txt` on `main` is the version line. Release 0.2 publishes `NestedTags.zip`. `scripts/sha256sums.sh` writes `SHA256SUMS` in GNU format `<64 hex>  NestedTags.zip` and rejects any other filename. The workflow `.github/workflows/sha256sums.yml` attaches that file to a release that already contains `NestedTags.zip`.
+`version.txt` on `main` is the version line. Release 0.3 publishes `NestedTags.zip`. `scripts/sha256sums.sh` writes `SHA256SUMS` in GNU format `<64 hex>  NestedTags.zip` and rejects any other filename. The workflow `.github/workflows/sha256sums.yml` attaches that file to a release that already contains `NestedTags.zip`.
 
 ## Beta: folders from a connected mailbox
 
