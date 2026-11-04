@@ -36,6 +36,7 @@ interface NestedBoot {
     nameIsTag: string;
     deleteFolder: string;
     folderActions: string;
+    folder: string;
 }
 
 interface JQueryModal {

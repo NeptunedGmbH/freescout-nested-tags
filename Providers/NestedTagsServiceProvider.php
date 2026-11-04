@@ -112,6 +112,7 @@ class NestedTagsServiceProvider extends ServiceProvider
                 'nameIsTag' => __('The name is also the tag.'),
                 'deleteFolder' => __('Delete this folder?'),
                 'folderActions' => __('Folder actions'),
+                'folder' => __('Folder'),
             );
             echo 'nestedtagsStart('.json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).');';
         }, 20, 0);
