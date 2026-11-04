@@ -265,11 +265,11 @@ body.dm .nestedtags-menu button:focus {
 }
 
 #custom-folders-index > .panel.nestedtags-nest-target > .panel-heading {
-    box-shadow: inset 4px 0 0 #4a90d9;
+    box-shadow: inset 4px 0 0 #FF6800;
 }
 
 body.dm #custom-folders-index > .panel.nestedtags-nest-target > .panel-heading {
-    box-shadow: inset 4px 0 0 #8eb6e8;
+    box-shadow: inset 4px 0 0 #FF6800;
 }
 
 .nestedtags-drag-chip {
@@ -293,7 +293,7 @@ body.dm #custom-folders-index > .panel.nestedtags-nest-target > .panel-heading {
 }
 
 #folders li.nestedtags-drop-on > a {
-    box-shadow: inset 3px 0 0 #4a90d9;
+    box-shadow: inset 3px 0 0 #FF6800;
 }
 
 #folders li.nestedtags-drop-line {
@@ -301,7 +301,7 @@ body.dm #custom-folders-index > .panel.nestedtags-nest-target > .panel-heading {
     margin: 0 16px;
     padding: 0;
     list-style: none;
-    background: #4a90d9;
+    background: #FF6800;
     pointer-events: none;
 }
 
@@ -313,10 +313,10 @@ body.dm .nestedtags-drag-chip {
 
 body.dm #folders li.nestedtags-drop-on > a,
 body.dm #folders li.nestedtags-drop-line {
-    box-shadow: inset 3px 0 0 #8eb6e8;
+    box-shadow: inset 3px 0 0 #FF6800;
 }
 
 body.dm #folders li.nestedtags-drop-line {
-    background: #8eb6e8;
+    background: #FF6800;
     box-shadow: none;
 }
